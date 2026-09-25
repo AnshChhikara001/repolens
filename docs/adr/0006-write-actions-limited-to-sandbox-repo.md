@@ -1,0 +1,3 @@
+# Write actions are limited to a sandbox repo behind human approval
+
+The only write action is opening an issue with findings. It targets `repolens-sandbox` only, never the analysed repository. It pauses the graph with `interrupt` until a human approves. The GitHub token is fine-grained and scoped to that single repository, with `Issues: write` and `Contents: read`. Our MCP layer exposes an allowlist of read tools plus `create_issue`. The hosted demo never holds a write token; there, the action is a dry run that renders the issue preview. The sandbox repo also hosts the fixture code with planted prompt injections used in red-team evals.
