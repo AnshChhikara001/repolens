@@ -30,6 +30,18 @@ flowchart LR
 
 Design decisions are recorded in [`docs/adr/`](docs/adr/).
 
+## Development
+
+Requires [uv](https://docs.astral.sh/uv/) and Docker.
+
+```sh
+uv sync
+docker compose up -d        # Postgres with pgvector
+cp .env.example .env        # then add your keys
+uv run repolens doctor      # checks the database and keys
+uv run pytest
+```
+
 ## Roadmap
 
 - [ ] **M0** Project scaffold, CI, local Postgres
