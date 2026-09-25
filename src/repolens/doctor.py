@@ -27,7 +27,8 @@ def probe_database(url: str) -> str:
                 "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
             ).fetchone()
     except psycopg.Error as exc:
-        raise DatabaseUnavailable(str(exc).strip().splitlines()[0]) from exc
+        message = str(exc).strip() or type(exc).__name__
+        raise DatabaseUnavailable(message.splitlines()[0]) from exc
     if row is None:
         raise DatabaseUnavailable("pgvector extension is not installed")
     return f"pgvector {row[0]}"
