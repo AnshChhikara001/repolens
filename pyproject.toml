@@ -1,0 +1,42 @@
+[project]
+name = "repolens"
+version = "0.1.0"
+description = "Multi-agent Q&A over GitHub repositories with verifiable citations, a per-run cost cap and guardrails"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Ansh Chhikara" }]
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.12",
+]
+
+[project.scripts]
+repolens = "repolens.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=3.7",
+    "pyright>=1.1.380",
+    "pytest>=8.3",
+    "ruff>=0.6",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
