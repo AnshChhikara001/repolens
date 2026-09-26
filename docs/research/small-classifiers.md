@@ -1,5 +1,7 @@
 # Small classifiers for the Repo Intelligence Agent (JEV, laya, and alternatives)
 
+> Update 2026-09-26: embeddings moved from bge-small to OpenAI `text-embedding-3-small` (ADR-0010). The routing and reranking ideas below still apply.
+
 Checked 2026-09-24. Figures come from primary sources (vendor docs, model cards, HF/GitHub/PyPI APIs) unless marked *secondary* or *estimate*.
 
 ## TL;DR
