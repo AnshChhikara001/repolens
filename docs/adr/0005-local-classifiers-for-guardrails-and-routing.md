@@ -1,6 +1,6 @@
 # Small local classifiers for guardrails and cheap routing
 
-Repository content (READMEs, docs, issues, code comments) is untrusted input and a real channel for indirect prompt injection. At ingest, each chunk is scored once by Llama Prompt Guard 2 (22M), cached by content hash. Chunks above threshold are quarantined, and flagged content is shown on the approval screen. Files and the final report are scanned with gitleaks for secrets. Retrieved text is always wrapped as untrusted data in prompts. Obvious single-specialist questions and off-topic questions are routed by cosine similarity on the bge-small embeddings we already compute, which skips the planner LLM call. A 22M cross-encoder reranks retrieved chunks to cut context tokens. All of these run on CPU in well under 1 GB of RAM.
+Repository content (READMEs, docs, issues, code comments) is untrusted input and a real channel for indirect prompt injection. At ingest, each chunk is scored once by Llama Prompt Guard 2 (22M), cached by content hash. Chunks above threshold are quarantined, and flagged content is shown on the approval screen. Files and the final report are scanned with gitleaks for secrets. Retrieved text is always wrapped as untrusted data in prompts. Obvious single-specialist questions and off-topic questions are routed by cosine similarity on the embeddings we already compute (ADR-0010), which skips the planner LLM call. A 22M cross-encoder reranks retrieved chunks to cut context tokens. All of these run on CPU in well under 1 GB of RAM.
 
 ## Considered Options
 
