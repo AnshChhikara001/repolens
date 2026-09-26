@@ -7,8 +7,13 @@ license = "MIT"
 authors = [{ name = "Ansh Chhikara" }]
 requires-python = ">=3.12"
 dependencies = [
+    "httpx2>=2.13.1",
+    "openai>=3.19.2",
     "psycopg[binary]>=3.2",
     "pydantic-settings>=2.4",
+    "tree-sitter>=0.25,<0.26",  # 0.26.0 over-releases Point.row ints and segfaults
+    "tree-sitter-python>=0.25.0",
+    "tree-sitter-typescript>=0.23.2",
     "typer>=0.12",
 ]
 
@@ -30,12 +35,15 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+extend-exclude = ["tests/fixtures"]
+force-exclude = true
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 
 [tool.pyright]
 include = ["src", "tests"]
+exclude = ["tests/fixtures"]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
 
