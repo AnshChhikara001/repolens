@@ -30,6 +30,11 @@ def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
 
 
+def configured() -> Settings:
+    """Settings with every required key set."""
+    return Settings(google_api_key=SecretStr("g-key"), openai_api_key=SecretStr("o-key"))
+
+
 def reachable(_url: str) -> str:
     return "pgvector 0.8.0"
 
@@ -43,14 +48,14 @@ def check_named(checks: list[Check], name: str) -> Check:
 
 
 def test_healthy_with_database_and_required_key() -> None:
-    checks = run_checks(Settings(google_api_key=SecretStr("g-key")), reachable)
+    checks = run_checks(configured(), reachable)
 
     assert healthy(checks)
     assert "pgvector 0.8.0" in check_named(checks, "database").detail
 
 
 def test_unreachable_database_is_unhealthy() -> None:
-    checks = run_checks(Settings(google_api_key=SecretStr("g-key")), unreachable)
+    checks = run_checks(configured(), unreachable)
 
     database = check_named(checks, "database")
     assert not healthy(checks)
@@ -65,8 +70,15 @@ def test_missing_required_key_is_unhealthy() -> None:
     assert not check_named(checks, "GOOGLE_API_KEY").ok
 
 
-def test_missing_optional_keys_are_reported_but_healthy() -> None:
+def test_missing_openai_key_is_unhealthy() -> None:
     checks = run_checks(Settings(google_api_key=SecretStr("g-key")), reachable)
+
+    assert not healthy(checks)
+    assert check_named(checks, "OPENAI_API_KEY").detail == "embeddings"
+
+
+def test_missing_optional_keys_are_reported_but_healthy() -> None:
+    checks = run_checks(configured(), reachable)
 
     groq = check_named(checks, "GROQ_API_KEY")
     assert healthy(checks)
