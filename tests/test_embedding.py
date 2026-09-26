@@ -54,6 +54,14 @@ def test_overlong_input_is_truncated() -> None:
     assert vectors == [[8_000, 1]]
 
 
+def test_truncation_counts_bytes_not_characters() -> None:
+    api = FakeOpenAI()
+
+    vectors = embedder(api).embed(["é" * 8_000])
+
+    assert vectors == [[4_000, 1]]
+
+
 def test_no_texts_means_no_requests() -> None:
     api = FakeOpenAI()
 
