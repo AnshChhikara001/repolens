@@ -4,12 +4,11 @@ from pathlib import Path
 
 import httpx2
 import pytest
+from fakes import SHA
 
 from repolens.github import GitHubSource
 from repolens.ingest import IngestError
 from repolens.snapshot import RepoRef, Snapshot
-
-SHA = "3f786850e387550fdab836ed7e6dc881de23001b"
 
 
 def tarball(files: dict[str, str]) -> bytes:
@@ -69,3 +68,11 @@ def test_download_extracts_regular_files_without_the_top_directory(tmp_path: Pat
         "app/auth.py"
     ]
     assert (tmp_path / "app/auth.py").read_text() == "def login(): ...\n"
+
+
+def test_network_failure_is_an_ingest_error() -> None:
+    def offline(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("no route to host", request=request)
+
+    with pytest.raises(IngestError, match="no route to host"):
+        GitHubSource(transport=httpx2.MockTransport(offline)).resolve(RepoRef("acme", "shop"))

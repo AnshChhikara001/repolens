@@ -2,6 +2,8 @@
 
 import tarfile
 import tempfile
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
@@ -29,6 +31,14 @@ class GitHubSource:
         )
 
     def resolve(self, repo: RepoRef) -> Snapshot:
+        with _wrap_errors():
+            return self._resolve(repo)
+
+    def download(self, snapshot: Snapshot, dest: Path) -> None:
+        with _wrap_errors():
+            self._download(snapshot, dest)
+
+    def _resolve(self, repo: RepoRef) -> Snapshot:
         response = self._client.get(f"/repos/{repo.owner}/{repo.name}")
         if response.status_code == 404:
             raise IngestError(f"repository {repo.owner}/{repo.name} not found")
@@ -47,7 +57,7 @@ class GitHubSource:
         owner, name = full_name.split("/")
         return Snapshot(owner, name, response.text.strip())
 
-    def download(self, snapshot: Snapshot, dest: Path) -> None:
+    def _download(self, snapshot: Snapshot, dest: Path) -> None:
         with tempfile.TemporaryFile() as archive:
             url = f"/repos/{snapshot.owner}/{snapshot.name}/tarball/{snapshot.sha}"
             with self._client.stream("GET", url) as response:
@@ -61,6 +71,16 @@ class GitHubSource:
                     parts = PurePosixPath(member.name).parts[1:]
                     if member.isfile() and parts:
                         tar.extract(member.replace(name="/".join(parts)), dest, filter="data")
+
+
+@contextmanager
+def _wrap_errors() -> Generator[None]:
+    try:
+        yield
+    except httpx2.HTTPError as exc:
+        raise IngestError(f"can't reach GitHub: {exc}") from exc
+    except tarfile.TarError as exc:
+        raise IngestError(f"bad tarball from GitHub: {exc}") from exc
 
 
 def _raise_for_status(response: httpx2.Response) -> None:
