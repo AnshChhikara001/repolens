@@ -22,8 +22,6 @@ VENDORED_DIRS = frozenset(
         "third_party",
         "third-party",
         "site-packages",
-        "dist",
-        "build",
         "venv",
         "__pycache__",
         "__generated__",
@@ -50,8 +48,8 @@ class SnapshotSource(Protocol):
 @dataclass(frozen=True)
 class IngestResult:
     snapshot: Snapshot
-    files: int
-    chunks: int
+    file_count: int
+    chunk_count: int
     created: bool
 
 
@@ -65,7 +63,7 @@ def ingest(
     snapshot = source.resolve(repo)
     stored = store.find(snapshot)
     if stored:
-        return IngestResult(snapshot, stored.files, stored.chunks, created=False)
+        return IngestResult(snapshot, stored.file_count, stored.chunk_count, created=False)
 
     with TemporaryDirectory() as tmp:
         source.download(snapshot, Path(tmp))

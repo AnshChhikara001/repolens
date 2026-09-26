@@ -41,8 +41,8 @@ CREATE INDEX IF NOT EXISTS chunks_snapshot_id_idx ON chunks (snapshot_id);
 
 @dataclass(frozen=True)
 class StoredSnapshot:
-    files: int
-    chunks: int
+    file_count: int
+    chunk_count: int
 
 
 class ChunkStore:

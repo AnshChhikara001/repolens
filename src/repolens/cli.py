@@ -77,4 +77,6 @@ def ingest_command(
         typer.echo("error: can't reach the database, run `repolens doctor`", err=True)
         raise typer.Exit(code=1) from exc
     status = "Ingested" if result.created else "Already ingested"
-    typer.echo(f"{status} {result.snapshot}: {result.chunks} chunks from {result.files} files")
+    typer.echo(
+        f"{status} {result.snapshot}: {result.chunk_count} chunks from {result.file_count} files"
+    )

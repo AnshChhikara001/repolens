@@ -65,15 +65,15 @@ def _spans(children: list[Node], container: str, header: tuple[int, int] | None)
     A class longer than MAX_CHUNK_LINES is split the same way, one span per method.
     """
     spans: list[_Span] = []
-    run = header
+    loose = header
     for child in children:
         definition = _definition(child)
         if definition is None:
-            run = (run[0] if run else child.start_point.row, child.end_point.row)
+            loose = (loose[0] if loose else child.start_point.row, child.end_point.row)
             continue
-        if run:
-            spans.append(_Span(run[0], run[1], container))
-            run = None
+        if loose:
+            spans.append(_Span(loose[0], loose[1], container))
+            loose = None
         name, body = definition
         symbol = name if container == MODULE_SYMBOL else f"{container}.{name}"
         start, end = child.start_point.row, child.end_point.row
@@ -82,8 +82,8 @@ def _spans(children: list[Node], container: str, header: tuple[int, int] | None)
             spans.extend(_spans(body.named_children, symbol, (start, header_end)))
         else:
             spans.append(_Span(start, end, symbol))
-    if run:
-        spans.append(_Span(run[0], run[1], container))
+    if loose:
+        spans.append(_Span(loose[0], loose[1], container))
     return spans
 
 
