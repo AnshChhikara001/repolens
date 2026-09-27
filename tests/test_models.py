@@ -2,8 +2,8 @@ import pytest
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import SecretStr
 
-from repolens.config import Settings
-from repolens.models import ModelConfigError, chat_model
+from repolens.config import ModelConfigError, Settings
+from repolens.models import chat_model
 
 pytestmark = pytest.mark.usefixtures("clean_env")
 
@@ -34,3 +34,10 @@ def test_missing_provider_key_is_named() -> None:
 def test_unknown_provider_is_rejected() -> None:
     with pytest.raises(ModelConfigError, match="'acme'"):
         chat_model(Settings(chat_model="acme:big-model"))
+
+
+def test_a_model_without_a_price_is_refused() -> None:
+    settings = Settings(chat_model="google_genai:gemini-1.0-pro", google_api_key=SecretStr("k"))
+
+    with pytest.raises(ModelConfigError, match=r"google_genai:gemini-1\.0-pro in prices\.yaml"):
+        chat_model(settings)
