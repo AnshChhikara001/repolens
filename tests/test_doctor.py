@@ -11,23 +11,7 @@ from repolens.doctor import Check, DatabaseUnavailable, healthy, probe_database,
 runner = CliRunner()
 
 CLOSED_PORT_URL = "postgresql://repolens:repolens@127.0.0.1:1/repolens"
-ENV_VARS = (
-    "DATABASE_URL",
-    "GOOGLE_API_KEY",
-    "GROQ_API_KEY",
-    "GITHUB_TOKEN",
-    "LANGFUSE_PUBLIC_KEY",
-    "LANGFUSE_SECRET_KEY",
-    "OPENAI_API_KEY",
-)
-
-
-@pytest.fixture(autouse=True)
-def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Keep the developer's shell and .env out of the tests."""
-    for name in ENV_VARS:
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.chdir(tmp_path)
+pytestmark = pytest.mark.usefixtures("clean_env")
 
 
 def configured() -> Settings:

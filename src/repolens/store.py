@@ -36,7 +36,44 @@ CREATE TABLE IF NOT EXISTS chunks (
 );
 
 CREATE INDEX IF NOT EXISTS chunks_snapshot_id_idx ON chunks (snapshot_id);
+
+-- Full-text search over path segments, symbol parts and code. Dots and slashes split
+-- `app/auth.py` and `LoginService.login` into words; the parser already splits `_`.
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS search tsvector GENERATED ALWAYS AS (
+    setweight(to_tsvector('english', translate(path || ' ' || symbol, '/.', '  ')), 'A')
+    || setweight(to_tsvector('english', translate(content, '/.', '  ')), 'B')
+) STORED;
+
+CREATE INDEX IF NOT EXISTS chunks_search_idx ON chunks USING gin (search);
 """).format(dimensions=sql.Literal(EMBEDDING_DIMENSIONS))
+
+# Reciprocal rank fusion of a keyword and a vector ranking, both limited to one Snapshot.
+# Keyword terms are OR-ed so a question matches chunks that contain any of its words.
+# Vectors are compared exactly: a Snapshot has at most a few thousand chunks, and an
+# approximate index would filter by Snapshot after the search and lose results.
+SEARCH = """
+WITH query AS (
+    SELECT replace(
+        plainto_tsquery('english', translate(%(text)s, '/.', '  '))::text, '&', '|'
+    )::tsquery AS terms
+),
+keyword AS (
+    SELECT id, row_number() OVER (ORDER BY ts_rank_cd(search, terms) DESC, id) AS rank
+    FROM chunks, query
+    WHERE snapshot_id = %(snapshot)s AND search @@ terms
+),
+semantic AS (
+    SELECT id, row_number() OVER (ORDER BY embedding <=> %(embedding)s::vector, id) AS rank
+    FROM chunks
+    WHERE snapshot_id = %(snapshot)s
+)
+SELECT path, start_line, end_line, symbol, content
+FROM keyword FULL JOIN semantic USING (id) JOIN chunks USING (id)
+ORDER BY coalesce(1.0 / (%(k)s + keyword.rank), 0)
+    + coalesce(1.0 / (%(k)s + semantic.rank), 0) DESC, id
+LIMIT %(limit)s
+"""
+RRF_K = 60
 
 
 @dataclass(frozen=True)
@@ -97,7 +134,7 @@ class ChunkStore:
                             chunk.end_line,
                             chunk.symbol,
                             chunk.text,
-                            f"[{','.join(map(str, embedding))}]",
+                            _vector(embedding),
                         )
                     )
 
@@ -109,3 +146,22 @@ class ChunkStore:
                 (str(snapshot),),
             ).fetchall()
         return [Chunk(*row) for row in rows]
+
+    def search(
+        self, snapshot: Snapshot, text: str, embedding: Sequence[float], limit: int
+    ) -> list[Chunk]:
+        """Return the Chunks that best match a question by keywords and by meaning."""
+        params = {
+            "snapshot": str(snapshot),
+            "text": text,
+            "embedding": _vector(embedding),
+            "k": RRF_K,
+            "limit": limit,
+        }
+        with psycopg.connect(self.url) as conn:
+            rows = conn.execute(SEARCH, params).fetchall()
+        return [Chunk(*row) for row in rows]
+
+
+def _vector(embedding: Sequence[float]) -> str:
+    return f"[{','.join(map(str, embedding))}]"
