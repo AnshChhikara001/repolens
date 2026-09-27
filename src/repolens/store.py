@@ -1,6 +1,6 @@
 """Postgres storage for Snapshots and their embedded Chunks."""
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 
 import psycopg
@@ -138,12 +138,15 @@ class ChunkStore:
                         )
                     )
 
-    def chunks(self, snapshot: Snapshot) -> list[Chunk]:
+    def chunks(self, snapshot: Snapshot, paths: Collection[str] | None = None) -> list[Chunk]:
+        """Return a Snapshot's Chunks, or only those of the given files."""
         with psycopg.connect(self.url) as conn:
             rows = conn.execute(
                 "SELECT path, start_line, end_line, symbol, content FROM chunks"
-                " WHERE snapshot_id = %s ORDER BY path, start_line",
-                (str(snapshot),),
+                " WHERE snapshot_id = %(snapshot)s"
+                " AND (%(paths)s::text[] IS NULL OR path = ANY(%(paths)s))"
+                " ORDER BY path, start_line",
+                {"snapshot": str(snapshot), "paths": None if paths is None else list(paths)},
             ).fetchall()
         return [Chunk(*row) for row in rows]
 
