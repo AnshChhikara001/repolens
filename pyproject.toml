@@ -8,6 +8,9 @@ authors = [{ name = "Ansh Chhikara" }]
 requires-python = ">=3.12"
 dependencies = [
     "httpx2>=2.13.1",
+    "langchain>=1.4.2",
+    "langchain-google-genai>=4.4.0",
+    "langgraph>=1.2.12",
     "openai>=3.19.2",
     "psycopg[binary]>=3.2",
     "pydantic-settings>=2.4",
@@ -46,6 +49,7 @@ include = ["src", "tests"]
 exclude = ["tests/fixtures"]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
+reportMissingTypeStubs = false  # langgraph ships inline types without a py.typed marker
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
