@@ -40,6 +40,7 @@ docker compose up -d        # Postgres with pgvector
 cp .env.example .env        # then add your keys
 uv run repolens doctor      # checks the database and keys
 uv run repolens ingest fastapi/typer   # chunks and embeds a repo snapshot
+uv run repolens ask fastapi/typer "How are CLI options parsed?"   # cited answer
 uv run pytest               # database tests are skipped if Postgres isn't running
 ```
 

@@ -1,6 +1,6 @@
 import pytest
 from conftest import TEST_DATABASE_URL
-from fakes import SHA, FakeEmbedder, FixtureSource
+from fakes import SHA, fake_embedder, fixture_source
 from typer.testing import CliRunner
 
 from repolens import cli
@@ -10,14 +10,6 @@ runner = CliRunner()
 
 
 pytestmark = pytest.mark.usefixtures("clean_env")
-
-
-def fixture_source(token: str | None) -> FixtureSource:
-    return FixtureSource()
-
-
-def fake_embedder(api_key: str) -> FakeEmbedder:
-    return FakeEmbedder()
 
 
 def test_ingest_prints_the_snapshot_and_chunk_count(

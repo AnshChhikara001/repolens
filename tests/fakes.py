@@ -47,6 +47,16 @@ class FakeEmbedder:
         return [[float(len(text))] + [1.0] * (EMBEDDING_DIMENSIONS - 1) for text in texts]
 
 
+def fixture_source(token: str | None) -> FixtureSource:
+    """Stands in for `GitHubSource(token=...)`."""
+    return FixtureSource()
+
+
+def fake_embedder(api_key: str) -> FakeEmbedder:
+    """Stands in for `OpenAIEmbedder(api_key=...)`."""
+    return FakeEmbedder()
+
+
 class ScriptedChatModel(BaseChatModel):
     """Answers each structured-output call with the next scripted object of the asked-for schema.
 
