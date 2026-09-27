@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Annotated
@@ -18,6 +19,9 @@ from repolens.report import Report
 from repolens.run import RunConfig, run
 from repolens.snapshot import RepoRef
 from repolens.store import ChunkStore
+
+# google-genai warns about how LangChain calls it on the first request. It isn't actionable.
+logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 
 app = typer.Typer(
     help="Ask questions about a GitHub repository and get answers with verifiable citations.",
