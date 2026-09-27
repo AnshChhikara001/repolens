@@ -22,6 +22,7 @@ class ReportDraft(BaseModel):
 
 
 def write_answer(question: str, findings: list[Finding], model: BaseChatModel) -> str:
+    """Answer the question from the Findings alone, citing them by number."""
     numbered = "\n".join(f"[{i}] {finding.claim}" for i, finding in enumerate(findings, 1))
     result = model.with_structured_output(ReportDraft).invoke(
         [

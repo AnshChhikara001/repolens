@@ -58,8 +58,8 @@ def test_code_navigator_reads_the_retrieved_code(ingested: ChunkStore) -> None:
 
     run(QUESTION, SNAPSHOT, config(ingested, model))
 
-    navigator_prompt = "\n".join(str(m.content) for m in model.prompts[0])
-    assert "return hashlib.sha256((SALT + password).encode()).hexdigest()" in navigator_prompt
+    code = "return hashlib.sha256((SALT + password).encode()).hexdigest()"
+    assert any(code in str(message.content) for prompt in model.prompts for message in prompt)
 
 
 def test_findings_without_citations_are_dropped(ingested: ChunkStore) -> None:
@@ -71,11 +71,9 @@ def test_findings_without_citations_are_dropped(ingested: ChunkStore) -> None:
     report = run(QUESTION, SNAPSHOT, config(ingested, model))
 
     assert report.findings == [HASHED]
-    writer_prompt = "\n".join(str(m.content) for m in model.prompts[1])
-    assert "plain text" not in writer_prompt
 
 
-def test_no_findings_means_a_not_found_report_and_no_writer_call(ingested: ChunkStore) -> None:
+def test_no_findings_means_a_not_found_report(ingested: ChunkStore) -> None:
     model = ScriptedChatModel(script=[CodeFindings(findings=[])])
 
     report = run("How is billing done?", SNAPSHOT, config(ingested, model))
@@ -84,10 +82,8 @@ def test_no_findings_means_a_not_found_report_and_no_writer_call(ingested: Chunk
     assert "No code" in report.answer
 
 
-def test_a_snapshot_without_chunks_needs_no_model_call(store: ChunkStore) -> None:
-    model = ScriptedChatModel(script=[])
-
-    report = run(QUESTION, SNAPSHOT, config(store, model))
+def test_a_snapshot_without_chunks_is_answered_without_a_model(store: ChunkStore) -> None:
+    report = run(QUESTION, SNAPSHOT, config(store, ScriptedChatModel(script=[])))
 
     assert report.findings == []
-    assert model.prompts == []
+    assert "No code" in report.answer

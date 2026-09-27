@@ -2,6 +2,7 @@
 
 For now the graph is a single fixed Step: the Code Navigator finds cited Findings and the
 Report Writer turns them into a Report. The Supervisor replaces the fixed Step in M2.
+Citations are not yet checked against the Snapshot (ADR-0007); the verifier comes next.
 """
 
 from dataclasses import dataclass
@@ -23,6 +24,8 @@ NOT_FOUND = "No code in this Snapshot answers the question."
 
 @dataclass(frozen=True)
 class RunConfig:
+    """The models and stores a Run uses."""
+
     model: BaseChatModel
     embedder: Embedder
     store: ChunkStore

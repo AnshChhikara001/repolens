@@ -15,13 +15,9 @@ from repolens.embedding import OpenAIEmbedder
 from repolens.github import GitHubSource
 from repolens.ingest import IngestError, IngestResult, ingest
 from repolens.models import ModelConfigError, chat_model
-from repolens.report import Report
 from repolens.run import RunConfig, run
 from repolens.snapshot import RepoRef
 from repolens.store import ChunkStore
-
-# google-genai warns about how LangChain calls it on the first request. It isn't actionable.
-logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 
 app = typer.Typer(
     help="Ask questions about a GitHub repository and get answers with verifiable citations.",
@@ -40,6 +36,8 @@ RepoArgument = Annotated[
 @app.callback()
 def main() -> None:
     """repolens command-line interface."""
+    # google-genai warns about how LangChain calls it on the first request. It isn't actionable.
+    logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 
 
 @app.command()
@@ -68,7 +66,7 @@ def ingest_command(repo: RepoArgument) -> None:
     with _errors_as_messages():
         result = _ingest(repo_ref, settings, embedder, ChunkStore(settings.database_url))
     status = "Ingested" if result.created else "Already ingested"
-    typer.echo(f"{status} {_counts(result)}")
+    typer.echo(f"{status} {_ingest_summary(result)}")
 
 
 @app.command()
@@ -85,9 +83,9 @@ def ask(
         store = ChunkStore(settings.database_url)
         result = _ingest(repo_ref, settings, embedder, store)
         if result.created:
-            typer.echo(f"Ingested {_counts(result)}", err=True)
+            typer.echo(f"Ingested {_ingest_summary(result)}", err=True)
         report = run(question, result.snapshot, RunConfig(model, embedder, store))
-    typer.echo(_render(report))
+    typer.echo(str(report))
 
 
 def _parse_repo(repo: str) -> RepoRef:
@@ -125,15 +123,5 @@ def _errors_as_messages() -> Generator[None]:
         raise typer.Exit(code=1) from exc
 
 
-def _counts(result: IngestResult) -> str:
+def _ingest_summary(result: IngestResult) -> str:
     return f"{result.snapshot}: {result.chunk_count} chunks from {result.file_count} files"
-
-
-def _render(report: Report) -> str:
-    lines = [f"Snapshot: {report.snapshot}", f"Question: {report.question}", "", report.answer]
-    if report.findings:
-        lines.append("")
-    for number, finding in enumerate(report.findings, 1):
-        lines.append(f"[{number}] {finding.claim}")
-        lines.extend(f"    {citation}" for citation in finding.citations)
-    return "\n".join(lines)
