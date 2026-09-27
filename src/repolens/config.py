@@ -18,3 +18,7 @@ class Settings(BaseSettings):
     langfuse_public_key: SecretStr | None = None
     langfuse_secret_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
+
+
+class ModelConfigError(Exception):
+    """The configured chat model can't be used."""

@@ -9,12 +9,15 @@ import typer
 from langchain_core.exceptions import LangChainException
 
 from repolens import __version__
-from repolens.config import Settings
+from repolens.config import ModelConfigError, Settings
+from repolens.costs import load_prices
 from repolens.doctor import healthy, probe_database, run_checks
 from repolens.embedding import OpenAIEmbedder
 from repolens.github import GitHubSource
 from repolens.ingest import IngestError, IngestResult, ingest
-from repolens.models import ModelConfigError, chat_model
+from repolens.ledger import Ledger
+from repolens.models import chat_model
+from repolens.rerank import CrossEncoderReranker
 from repolens.run import RunConfig, run
 from repolens.snapshot import RepoRef
 from repolens.store import ChunkStore
@@ -84,7 +87,10 @@ def ask(
         result = _ingest(repo_ref, settings, embedder, store)
         if result.created:
             typer.echo(f"Ingested {_ingest_summary(result)}", err=True)
-        report = run(question, result.snapshot, RunConfig(model, embedder, store))
+        ledger = Ledger(settings.database_url)
+        ledger.setup()
+        config = RunConfig(model, embedder, store, CrossEncoderReranker(), load_prices(), ledger)
+        report = run(question, result.snapshot, config)
     typer.echo(str(report))
 
 
