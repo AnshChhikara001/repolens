@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 from conftest import TEST_DATABASE_URL
 from fakes import SHA, FakeEmbedder, FixtureSource
@@ -11,12 +9,7 @@ from repolens.store import ChunkStore
 runner = CliRunner()
 
 
-@pytest.fixture(autouse=True)
-def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Keep the developer's shell and .env out of the tests."""
-    for name in ("DATABASE_URL", "OPENAI_API_KEY", "GITHUB_TOKEN"):
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.chdir(tmp_path)
+pytestmark = pytest.mark.usefixtures("clean_env")
 
 
 def fixture_source(token: str | None) -> FixtureSource:

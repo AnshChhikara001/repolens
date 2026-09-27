@@ -1,10 +1,12 @@
 import os
+from pathlib import Path
 
 import psycopg
 import pytest
 from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
+from repolens.config import Settings
 from repolens.store import ChunkStore
 
 TEST_DATABASE_URL = os.environ.get(
@@ -34,3 +36,11 @@ def store() -> ChunkStore:
     with psycopg.connect(TEST_DATABASE_URL) as conn:
         conn.execute("TRUNCATE snapshots CASCADE")
     return store
+
+
+@pytest.fixture
+def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Keep the developer's shell and .env out of the tests."""
+    for name in Settings.model_fields:
+        monkeypatch.delenv(name.upper(), raising=False)
+    monkeypatch.chdir(tmp_path)
