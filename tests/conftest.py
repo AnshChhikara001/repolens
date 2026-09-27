@@ -7,6 +7,7 @@ from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 from repolens.config import Settings
+from repolens.ledger import Ledger
 from repolens.store import ChunkStore
 
 TEST_DATABASE_URL = os.environ.get(
@@ -36,6 +37,16 @@ def store() -> ChunkStore:
     with psycopg.connect(TEST_DATABASE_URL) as conn:
         conn.execute("TRUNCATE snapshots CASCADE")
     return store
+
+
+@pytest.fixture
+def ledger(store: ChunkStore) -> Ledger:
+    """An empty cost ledger in the test database."""
+    ledger = Ledger(TEST_DATABASE_URL)
+    ledger.setup()
+    with psycopg.connect(TEST_DATABASE_URL) as conn:
+        conn.execute("TRUNCATE ledger")
+    return ledger
 
 
 @pytest.fixture
