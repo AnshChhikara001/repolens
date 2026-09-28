@@ -1,5 +1,6 @@
 """Findings, Citations and the Report a Run returns (ADR-0007)."""
 
+from collections import Counter
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -60,6 +61,13 @@ class Report:
         return "\n".join(lines)
 
     def _cost(self) -> str:
-        calls = f"{len(self.calls)} model call{'' if len(self.calls) == 1 else 's'}"
-        shadow = ", at shadow prices" if any(call.shadow for call in self.calls) else ""
-        return f"Cost: ${self.cost_usd:.4f} for {calls}{shadow}"
+        """E.g. `Shadow cost: $0.0204 (gemini-3.5-flash, 2 calls)`, one entry per model."""
+        shadow = self.calls and all(call.shadow for call in self.calls)
+        label = "Shadow cost" if shadow else "Cost"
+        counts = Counter(call.model.partition(":")[2] for call in self.calls)
+        models = "; ".join(f"{model}, {_calls(count)}" for model, count in counts.items())
+        return f"{label}: ${self.cost_usd:.4f} ({models or 'no model calls'})"
+
+
+def _calls(count: int) -> str:
+    return f"{count} call{'' if count == 1 else 's'}"

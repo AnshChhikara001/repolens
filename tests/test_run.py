@@ -11,7 +11,7 @@ from fakes import (
 
 from repolens.code_navigator import CodeFindings
 from repolens.config import ModelConfigError
-from repolens.costs import PriceTable
+from repolens.costs import Price, PriceTable
 from repolens.ingest import ingest
 from repolens.ledger import Ledger
 from repolens.report import Citation, Finding
@@ -183,6 +183,7 @@ def test_a_snapshot_without_chunks_is_answered_without_a_model(
     assert report.findings == []
     assert report.calls == []
     assert "Nothing in" in report.answer
+    assert str(report).endswith("\n\nCost: $0.0000 (no model calls)")
 
 
 def test_the_report_shows_the_run_cost(ingested: ChunkStore, ledger: Ledger) -> None:
@@ -191,7 +192,16 @@ def test_the_report_shows_the_run_cost(ingested: ChunkStore, ledger: Ledger) -> 
     report = run(QUESTION, SNAPSHOT, config(ingested, ledger, model))
 
     assert report.cost_usd == pytest.approx(2 * CALL_COST)
-    assert str(report).endswith("\n\nCost: $0.0024 for 2 model calls, at shadow prices")
+    assert str(report).endswith("\n\nShadow cost: $0.0024 (scripted, 2 calls)")
+
+
+def test_a_run_on_a_paid_model_shows_its_real_cost(ingested: ChunkStore, ledger: Ledger) -> None:
+    model = ScriptedChatModel(script=[CodeFindings(findings=[])])
+    paid = PriceTable({"fake:scripted": Price(input=1.0, output=2.0)})
+
+    report = run(QUESTION, SNAPSHOT, config(ingested, ledger, model, prices=paid))
+
+    assert str(report).endswith("\n\nCost: $0.0012 (scripted, 1 call)")
 
 
 def test_the_ledger_has_one_row_per_model_call(ingested: ChunkStore, ledger: Ledger) -> None:

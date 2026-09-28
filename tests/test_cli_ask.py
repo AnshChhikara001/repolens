@@ -84,7 +84,7 @@ def test_ask_prints_a_report_with_citations_cost_and_the_snapshot(
         "    app/auth.py:14-15\n"
         "    app/auth.py:6-7\n"
         "\n"
-        "Cost: $0.0024 for 2 model calls, at shadow prices\n"
+        "Shadow cost: $0.0024 (scripted, 2 calls)\n"
     )
     assert ledger.total_usd() == pytest.approx(2 * CALL_COST)
     assert "Ingested" in result.stderr
