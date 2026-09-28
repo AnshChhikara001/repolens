@@ -1718,6 +1718,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastembed" },
+    { name = "httpx" },
     { name = "httpx2" },
     { name = "langchain" },
     { name = "langchain-google-genai" },
@@ -1744,6 +1745,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastembed", specifier = ">=0.8.1" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "httpx2", specifier = ">=2.13.1" },
     { name = "langchain", specifier = ">=1.4.2" },
     { name = "langchain-google-genai", specifier = ">=4.4.0" },

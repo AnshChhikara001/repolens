@@ -46,8 +46,14 @@ class PriceTable:
         """The model's price, or a ModelConfigError: every call must be priced."""
         price = self._prices.get(model)
         if price is None:
-            raise ModelConfigError(f"no price for {model} in {PRICES_FILE}")
+            raise ModelConfigError(f"no price for {model} in {PRICES_FILE} or LOCAL_MODELS")
         return price
+
+    def merged(self, prices: Mapping[str, Price]) -> "PriceTable":
+        """This table plus prices for models it doesn't price. Reviewed prices can't change."""
+        if repriced := sorted(prices.keys() & self._prices.keys()):
+            raise ModelConfigError(f"{', '.join(repriced)} is priced in {PRICES_FILE} already")
+        return PriceTable({**self._prices, **prices})
 
     def call(self, model: str, input_tokens: int, output_tokens: int) -> ModelCall:
         """Price one call."""

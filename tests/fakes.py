@@ -118,3 +118,19 @@ class ScriptedChatModel(BaseChatModel):
         usage = UsageMetadata(input_tokens=1000, output_tokens=100, total_tokens=1100)
         message = AIMessage("", tool_calls=[call], usage_metadata=usage)
         return ChatResult(generations=[ChatGeneration(message=message)])
+
+
+class TimedOutChatModel(ScriptedChatModel):
+    """Fails every call the way a provider does when a request takes too long."""
+
+    error: BaseException
+
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: CallbackManagerForLLMRun | None = None,
+        tool_names: Sequence[str] = (),
+        **kwargs: Any,
+    ) -> ChatResult:
+        raise self.error

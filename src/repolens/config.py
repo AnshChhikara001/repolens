@@ -1,8 +1,11 @@
+from pathlib import Path
+
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_DATABASE_URL = "postgresql://repolens:repolens@localhost:5432/repolens"
 DEFAULT_CHAT_MODEL = "google_genai:gemini-3.5-flash"
+DEFAULT_CHAT_TIMEOUT = 120.0
 
 
 class Settings(BaseSettings):
@@ -12,6 +15,8 @@ class Settings(BaseSettings):
 
     database_url: str = DEFAULT_DATABASE_URL
     chat_model: str = DEFAULT_CHAT_MODEL
+    chat_timeout: float = DEFAULT_CHAT_TIMEOUT
+    local_models: Path | None = None
     google_api_key: SecretStr | None = None
     groq_api_key: SecretStr | None = None
     github_token: SecretStr | None = None

@@ -3,6 +3,8 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Annotated
 
+import httpx
+import httpx2
 import openai
 import psycopg
 import typer
@@ -10,13 +12,12 @@ from langchain_core.exceptions import LangChainException
 
 from repolens import __version__
 from repolens.config import ModelConfigError, Settings
-from repolens.costs import load_prices
 from repolens.doctor import healthy, probe_database, run_checks
 from repolens.embedding import OpenAIEmbedder
 from repolens.github import GitHubSource
 from repolens.ingest import IngestError, IngestResult, ingest
 from repolens.ledger import Ledger
-from repolens.models import chat_model
+from repolens.models import chat_model, price_table
 from repolens.rerank import CrossEncoderReranker
 from repolens.run import RunConfig, run
 from repolens.snapshot import RepoRef
@@ -89,8 +90,11 @@ def ask(
             typer.echo(f"Ingested {_ingest_summary(result)}", err=True)
         ledger = Ledger(settings.database_url)
         ledger.setup()
-        config = RunConfig(model, embedder, store, CrossEncoderReranker(), load_prices(), ledger)
-        report = run(question, result.snapshot, config)
+        prices = price_table(settings)
+        config = RunConfig(model, embedder, store, CrossEncoderReranker(), prices, ledger)
+        typer.echo(f"Answering with {settings.chat_model}…", err=True)
+        with _timeout_as_message(settings.chat_timeout):
+            report = run(question, result.snapshot, config)
     typer.echo(str(report))
 
 
@@ -126,6 +130,23 @@ def _errors_as_messages() -> Generator[None]:
         raise typer.Exit(code=1) from exc
     except psycopg.OperationalError as exc:
         typer.echo("error: can't reach the database, run `repolens doctor`", err=True)
+        raise typer.Exit(code=1) from exc
+
+
+@contextmanager
+def _timeout_as_message(timeout: float) -> Generator[None]:
+    """Report a chat model request that took longer than CHAT_TIMEOUT.
+
+    OpenAI's SDK raises its own timeout error, which `_errors_as_messages` prints.
+    """
+    try:
+        yield
+    except (TimeoutError, httpx.TimeoutException, httpx2.TimeoutException) as exc:
+        typer.echo(
+            f"error: the chat model didn't answer within {timeout:g}s,"
+            " raise CHAT_TIMEOUT to wait longer",
+            err=True,
+        )
         raise typer.Exit(code=1) from exc
 
 

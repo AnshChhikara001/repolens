@@ -1,3 +1,7 @@
+from pathlib import Path
+
+import httpx
+import httpx2
 import pytest
 from conftest import TEST_DATABASE_URL
 from fakes import (
@@ -6,6 +10,7 @@ from fakes import (
     SHA,
     KeywordReranker,
     ScriptedChatModel,
+    TimedOutChatModel,
     fake_embedder,
     fixture_source,
 )
@@ -43,8 +48,8 @@ FINDINGS = CodeFindings(
 
 
 @pytest.fixture
-def fakes(monkeypatch: pytest.MonkeyPatch) -> ScriptedChatModel:
-    model = ScriptedChatModel(script=[])
+def offline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Everything but the chat model: fixture repo, fake embeddings, test database."""
     monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     monkeypatch.setenv("GOOGLE_API_KEY", "g-test")
@@ -52,10 +57,15 @@ def fakes(monkeypatch: pytest.MonkeyPatch) -> ScriptedChatModel:
     monkeypatch.setattr(cli, "OpenAIEmbedder", fake_embedder)
     monkeypatch.setattr(cli, "CrossEncoderReranker", KeywordReranker)
 
-    def fake_prices() -> PriceTable:
+
+@pytest.fixture
+def fakes(monkeypatch: pytest.MonkeyPatch, offline: None) -> ScriptedChatModel:
+    model = ScriptedChatModel(script=[])
+
+    def fake_prices(settings: Settings) -> PriceTable:
         return FAKE_PRICES
 
-    monkeypatch.setattr(cli, "load_prices", fake_prices)
+    monkeypatch.setattr(cli, "price_table", fake_prices)
 
     def scripted_model(settings: Settings) -> ScriptedChatModel:
         return model
@@ -84,7 +94,7 @@ def test_ask_prints_a_report_with_citations_cost_and_the_snapshot(
         "    app/auth.py:14-15\n"
         "    app/auth.py:6-7\n"
         "\n"
-        "Cost: $0.0024 for 2 model calls, at shadow prices\n"
+        "Shadow cost: $0.0024 (scripted, 2 calls)\n"
     )
     assert ledger.total_usd() == pytest.approx(2 * CALL_COST)
     assert "Ingested" in result.stderr
@@ -99,7 +109,7 @@ def test_ask_reuses_an_ingested_snapshot(
     result = runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
 
     assert result.exit_code == 0, result.output
-    assert result.stderr == ""
+    assert result.stderr == "Answering with google_genai:gemini-3.5-flash…\n"
     assert f"Nothing in acme/shop@{SHA} answers this question." in result.stdout
 
 
@@ -117,3 +127,66 @@ def test_ask_needs_an_openai_key() -> None:
 
     assert result.exit_code == 1
     assert "OPENAI_API_KEY" in result.output
+
+
+# A local models file whose model finds nothing, in one priced call.
+LOCAL_MODELS = """
+from fakes import ScriptedChatModel
+from repolens.code_navigator import CodeFindings
+
+PRICES = {"fake:scripted": {"input": 1.0, "output": 2.0, "free_tier": True}}
+
+
+def chat_model(name, timeout):
+    return ScriptedChatModel(script=[CodeFindings(findings=[])])
+"""
+
+
+def test_ask_runs_a_model_from_the_local_models_file(
+    store: ChunkStore,
+    ledger: Ledger,
+    offline: None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_models = tmp_path / "models.py"
+    local_models.write_text(LOCAL_MODELS)
+    monkeypatch.setenv("LOCAL_MODELS", str(local_models))
+    monkeypatch.setenv("CHAT_MODEL", "fake:scripted")
+
+    result = runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout.endswith("\n\nShadow cost: $0.0012 (scripted, 1 call)\n")
+    assert "Answering with fake:scripted…" in result.stderr
+    assert ledger.total_usd() == pytest.approx(CALL_COST)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        TimeoutError(),
+        httpx.ReadTimeout("timed out"),
+        httpx2.ReadTimeout("timed out"),
+    ],
+)
+def test_a_model_that_times_out_fails_the_run_with_a_clear_error(
+    store: ChunkStore,
+    fakes: ScriptedChatModel,
+    monkeypatch: pytest.MonkeyPatch,
+    error: BaseException,
+) -> None:
+    monkeypatch.setenv("CHAT_TIMEOUT", "30")
+
+    def timed_out_model(settings: Settings) -> ScriptedChatModel:
+        return TimedOutChatModel(script=[], error=error)
+
+    monkeypatch.setattr(cli, "chat_model", timed_out_model)
+
+    result = runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
+
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert result.stderr.endswith(
+        "error: the chat model didn't answer within 30s, raise CHAT_TIMEOUT to wait longer\n"
+    )
