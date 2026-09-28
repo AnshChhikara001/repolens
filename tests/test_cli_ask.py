@@ -1,3 +1,5 @@
+import httpx
+import httpx2
 import pytest
 from conftest import TEST_DATABASE_URL
 from fakes import (
@@ -6,6 +8,7 @@ from fakes import (
     SHA,
     KeywordReranker,
     ScriptedChatModel,
+    TimedOutChatModel,
     fake_embedder,
     fixture_source,
 )
@@ -117,3 +120,33 @@ def test_ask_needs_an_openai_key() -> None:
 
     assert result.exit_code == 1
     assert "OPENAI_API_KEY" in result.output
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        TimeoutError(),
+        httpx.ReadTimeout("timed out"),
+        httpx2.ReadTimeout("timed out"),
+    ],
+)
+def test_a_model_that_times_out_fails_the_run_with_a_clear_error(
+    store: ChunkStore,
+    fakes: ScriptedChatModel,
+    monkeypatch: pytest.MonkeyPatch,
+    error: BaseException,
+) -> None:
+    monkeypatch.setenv("CHAT_TIMEOUT", "30")
+
+    def timed_out_model(settings: Settings) -> ScriptedChatModel:
+        return TimedOutChatModel(script=[], error=error)
+
+    monkeypatch.setattr(cli, "chat_model", timed_out_model)
+
+    result = runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
+
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert result.stderr.endswith(
+        "error: the chat model didn't answer within 30s, raise CHAT_TIMEOUT to wait longer\n"
+    )

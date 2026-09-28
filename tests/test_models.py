@@ -17,6 +17,14 @@ def test_default_model_is_gemini_flash() -> None:
     assert model.temperature == 0
 
 
+def test_built_in_models_give_up_on_a_request_after_the_chat_timeout() -> None:
+    model = chat_model(Settings(chat_timeout=30, google_api_key=SecretStr("k")))
+
+    assert isinstance(model, ChatGoogleGenerativeAI)
+    assert model.timeout == 30
+    assert model.max_retries == 2
+
+
 def test_model_is_chosen_by_config() -> None:
     model = chat_model(
         Settings(chat_model="google_genai:gemini-3.5-flash-lite", google_api_key=SecretStr("k"))

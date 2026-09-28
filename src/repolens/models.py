@@ -13,6 +13,9 @@ API_KEYS = {
     "openai": "openai_api_key",
 }
 
+# Each retry may wait the full CHAT_TIMEOUT, so keep them few.
+MAX_RETRIES = 2
+
 
 def chat_model(settings: Settings) -> BaseChatModel:
     """Build the chat model named by `CHAT_MODEL`, written `provider:model`.
@@ -30,4 +33,10 @@ def chat_model(settings: Settings) -> BaseChatModel:
             f"{API_KEYS[provider].upper()} is not set (needed for {settings.chat_model})"
         )
     load_prices().require(settings.chat_model)
-    return init_chat_model(settings.chat_model, api_key=key.get_secret_value(), temperature=0)
+    return init_chat_model(
+        settings.chat_model,
+        api_key=key.get_secret_value(),
+        temperature=0,
+        timeout=settings.chat_timeout,
+        max_retries=MAX_RETRIES,
+    )

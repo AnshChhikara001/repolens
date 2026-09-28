@@ -7,3 +7,4 @@ The total paid LLM budget for the project is about $1.50. Development, CI and th
 - Free tiers have daily request quotas. Full eval runs use Flash-Lite for workers, or are split across days.
 - Free-tier prompts may be used by the provider for training. That's acceptable because we only analyse public repositories.
 - Local LLMs were rejected: the development machine has 8 GB RAM, which isn't enough for reliable tool calling.
+- Every chat-model request has a timeout (`CHAT_TIMEOUT`, default 120s). Built-in providers get a small retry limit, so a slow free tier fails with a clear error instead of stalling a Run.
