@@ -46,12 +46,12 @@ def run(question: str, snapshot: Snapshot, config: RunConfig) -> Report:
     log = RunLog(config.runs_dir / f"{run_id}.jsonl")
     log.write("start", run_id=run_id, snapshot=snapshot, question=question, model=config.llm.name)
     llm = _RecordingLLM(config.llm, log)
-    read = LinesRead()
+    lines_read = LinesRead()
     try:
         findings = find_code(
-            question, snapshot, llm, config.embedder, config.store, config.reranker, read
+            question, snapshot, llm, config.embedder, config.store, config.reranker, lines_read
         )
-        findings = verify(findings, read)
+        findings = verify(findings, lines_read)
         if findings:
             answer = write_answer(question, findings, llm)
         else:
