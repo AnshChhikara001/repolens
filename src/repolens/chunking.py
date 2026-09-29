@@ -9,6 +9,8 @@ from tree_sitter import Language, Node, Parser
 
 MODULE_SYMBOL = "<module>"
 MAX_CHUNK_LINES = 150
+# Module-level code shorter than this joins the definition next to it.
+SMALL_MODULE_LINES = 10
 
 LANGUAGES = {
     ".py": Language(tree_sitter_python.language()),
@@ -54,7 +56,9 @@ def chunk_file(path: str, source: str) -> list[Chunk]:
     lines = source.split("\n")  # tree-sitter rows count "\n" only
     return [
         Chunk(path, w.start + 1, w.end + 1, w.symbol, "\n".join(lines[w.start : w.end + 1]))
-        for span in _spans(tree.root_node.named_children, MODULE_SYMBOL, None)
+        for span in _merge_small_module_code(
+            _spans(tree.root_node.named_children, MODULE_SYMBOL, None)
+        )
         for w in _windows(span)
     ]
 
@@ -85,6 +89,31 @@ def _spans(children: list[Node], container: str, header: tuple[int, int] | None)
     if loose:
         spans.append(_Span(loose[0], loose[1], container))
     return spans
+
+
+def _merge_small_module_code(spans: list[_Span]) -> list[_Span]:
+    """Join short module-level code, like imports or `if __name__ == "__main__":`, to the
+    definition after it, or before it at the end of a file, so few Chunks are a few loose lines.
+    """
+    merged: list[_Span] = []
+    small: _Span | None = None
+    for span in spans:
+        if span.symbol == MODULE_SYMBOL and span.end - span.start + 1 < SMALL_MODULE_LINES:
+            if small:
+                merged.append(small)
+            small = span
+            continue
+        if small and span.end - small.start + 1 <= MAX_CHUNK_LINES:
+            span = _Span(small.start, span.end, span.symbol)
+        elif small:
+            merged.append(small)
+        small = None
+        merged.append(span)
+    if small and merged and small.end - merged[-1].start + 1 <= MAX_CHUNK_LINES:
+        merged[-1] = _Span(merged[-1].start, small.end, merged[-1].symbol)
+    elif small:
+        merged.append(small)
+    return merged
 
 
 def _definition(node: Node) -> tuple[str, Node | None] | None:

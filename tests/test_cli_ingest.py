@@ -24,8 +24,8 @@ def test_ingest_prints_the_snapshot_and_chunk_count(
     second = runner.invoke(cli.app, ["ingest", "acme/shop@main"])
 
     assert first.exit_code == 0
-    assert first.output == f"Ingested acme/shop@{SHA}: 7 chunks from 5 files\n"
-    assert second.output == f"Already ingested acme/shop@{SHA}: 7 chunks from 5 files\n"
+    assert first.output == f"Ingested acme/shop@{SHA}: 6 chunks from 5 files\n"
+    assert second.output == f"Already ingested acme/shop@{SHA}: 6 chunks from 5 files\n"
 
 
 def test_ingest_needs_an_openai_key() -> None:
