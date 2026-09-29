@@ -10,7 +10,12 @@ from repolens.chunking import Chunk
 from repolens.embedding import EMBEDDING_DIMENSIONS
 from repolens.snapshot import Snapshot
 
+SCHEMA_LOCK = 7_365_210  # any number no other code uses as an advisory lock
+
 SCHEMA = sql.SQL("""
+-- Two processes changing the schema at once can deadlock, so they take turns.
+SELECT pg_advisory_xact_lock({lock});
+
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS snapshots (
@@ -48,7 +53,7 @@ ALTER TABLE chunks ADD COLUMN IF NOT EXISTS search tsvector GENERATED ALWAYS AS 
 ) STORED;
 
 CREATE INDEX IF NOT EXISTS chunks_search_idx ON chunks USING gin (search);
-""").format(dimensions=sql.Literal(EMBEDDING_DIMENSIONS))
+""").format(dimensions=sql.Literal(EMBEDDING_DIMENSIONS), lock=sql.Literal(SCHEMA_LOCK))
 
 # Reciprocal rank fusion of a keyword and a vector ranking, both limited to one Snapshot.
 # Keyword terms are OR-ed so a question matches chunks that contain any of its words.
