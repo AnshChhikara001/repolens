@@ -1,0 +1,148 @@
+# The eval questions for `repolens eval`, pinned to commit SHAs.
+#
+# expected_files: the files a good answer cites. expected_symbols (optional): the functions,
+# classes or methods that hold the answer, as the chunker names them.
+
+# --- fastapi/typer: a Python CLI library -------------------------------------------------
+
+[[questions]]
+id = "typer-params-to-options"
+repo = "fastapi/typer@a80f6e5ecd74f32b983cca336a2f3cba98d9853a"
+question = "How does typer turn a function's parameters into command-line options and arguments?"
+expected_files = ["typer/main.py", "typer/utils.py"]
+expected_symbols = ["get_click_param", "get_params_from_function"]
+
+[[questions]]
+id = "typer-single-command"
+repo = "fastapi/typer@a80f6e5ecd74f32b983cca336a2f3cba98d9853a"
+question = "When does a Typer app run its only command directly instead of showing subcommands?"
+expected_files = ["typer/main.py"]
+expected_symbols = ["get_command"]
+
+[[questions]]
+id = "typer-enum-choices"
+repo = "fastapi/typer@a80f6e5ecd74f32b983cca336a2f3cba98d9853a"
+question = "How are Enum parameters turned into a list of choices and converted back to Enum values?"
+expected_files = ["typer/main.py"]
+expected_symbols = ["get_click_type", "generate_enum_convertor"]
+
+[[questions]]
+id = "typer-context-parameter"
+repo = "fastapi/typer@a80f6e5ecd74f32b983cca336a2f3cba98d9853a"
+question = "How does a command receive the typer.Context object when it declares a Context parameter?"
+expected_files = ["typer/main.py"]
+expected_symbols = ["get_params_convertors_ctx_param_name_from_function", "get_callback"]
+
+[[questions]]
+id = "typer-annotated"
+repo = "fastapi/typer@a80f6e5ecd74f32b983cca336a2f3cba98d9853a"
+question = "How does typer read Option and Argument settings from Annotated type hints, and which mistakes does it reject?"
+expected_files = ["typer/utils.py"]
+expected_symbols = ["get_params_from_function"]
+
+[[questions]]
+id = "typer-pretty-exceptions"
+repo = "fastapi/typer@a80f6e5ecd74f32b983cca336a2f3cba98d9853a"
+question = "How does typer show pretty tracebacks for exceptions raised in the user's code?"
+expected_files = ["typer/main.py"]
+expected_symbols = ["except_hook", "Typer.__call__"]
+
+[[questions]]
+id = "typer-rich-help"
+repo = "fastapi/typer@a80f6e5ecd74f32b983cca336a2f3cba98d9853a"
+question = "How is the --help output rendered with Rich panels?"
+expected_files = ["typer/rich_utils.py", "typer/core.py"]
+expected_symbols = ["rich_format_help"]
+
+[[questions]]
+id = "typer-did-you-mean"
+repo = "fastapi/typer@a80f6e5ecd74f32b983cca336a2f3cba98d9853a"
+question = "How does typer suggest a command when the user mistypes a subcommand name?"
+expected_files = ["typer/core.py"]
+expected_symbols = ["TyperGroup.resolve_command"]
+
+[[questions]]
+id = "typer-install-completion"
+repo = "fastapi/typer@a80f6e5ecd74f32b983cca336a2f3cba98d9853a"
+question = "How does --install-completion install shell completion for bash and zsh?"
+expected_files = ["typer/_completion_shared.py"]
+expected_symbols = ["install", "install_bash", "install_zsh"]
+
+[[questions]]
+id = "typer-cli-runner"
+repo = "fastapi/typer@a80f6e5ecd74f32b983cca336a2f3cba98d9853a"
+question = "How does typer's CliRunner capture stdout and stderr when a test invokes an app?"
+expected_files = ["typer/testing.py"]
+expected_symbols = ["CliRunner.isolation", "CliRunner.invoke"]
+
+[[questions]]
+id = "typer-find-app"
+repo = "fastapi/typer@a80f6e5ecd74f32b983cca336a2f3cba98d9853a"
+question = "How does the `typer` command find the app to run in a Python file or module?"
+expected_files = ["typer/cli.py"]
+expected_symbols = ["get_typer_from_module"]
+
+# --- sindresorhus/ky: a TypeScript HTTP client ------------------------------------------
+
+[[questions]]
+id = "ky-retry-decision"
+repo = "sindresorhus/ky@0d59458a0a58e1c3d7c6db0ab17ed5c7cd671e47"
+question = "Which errors and status codes does ky retry, and when does it give up?"
+expected_files = ["source/core/Ky.ts"]
+expected_symbols = ["Ky.#calculateRetryDelay"]
+
+[[questions]]
+id = "ky-retry-after"
+repo = "sindresorhus/ky@0d59458a0a58e1c3d7c6db0ab17ed5c7cd671e47"
+question = "How does ky respect a Retry-After header from the server?"
+expected_files = ["source/core/Ky.ts", "source/core/retry-timing.ts"]
+expected_symbols = ["getRetryTimingHeader", "calculateRetryTimingDelay"]
+
+[[questions]]
+id = "ky-retry-delay"
+repo = "sindresorhus/ky@0d59458a0a58e1c3d7c6db0ab17ed5c7cd671e47"
+question = "How is the delay between retries calculated, including jitter and the backoff limit?"
+expected_files = ["source/core/Ky.ts"]
+expected_symbols = ["Ky.#calculateDelay"]
+
+[[questions]]
+id = "ky-timeout"
+repo = "sindresorhus/ky@0d59458a0a58e1c3d7c6db0ab17ed5c7cd671e47"
+question = "How does ky time out a request that takes too long?"
+expected_files = ["source/utils/timeout.ts", "source/core/Ky.ts"]
+expected_symbols = ["timeout", "Ky.#fetch"]
+
+[[questions]]
+id = "ky-before-request-hooks"
+repo = "sindresorhus/ky@0d59458a0a58e1c3d7c6db0ab17ed5c7cd671e47"
+question = "How do beforeRequest hooks run, and can a hook replace the request or return a response?"
+expected_files = ["source/core/Ky.ts"]
+expected_symbols = ["Ky.#runBeforeRequestHooks"]
+
+[[questions]]
+id = "ky-extend"
+repo = "sindresorhus/ky@0d59458a0a58e1c3d7c6db0ab17ed5c7cd671e47"
+question = "How does ky.extend create a new instance with merged defaults?"
+expected_files = ["source/index.ts", "source/utils/merge.ts"]
+expected_symbols = ["createInstance", "validateAndMerge"]
+
+[[questions]]
+id = "ky-json-body"
+repo = "sindresorhus/ky@0d59458a0a58e1c3d7c6db0ab17ed5c7cd671e47"
+question = "What does ky do with the json option when it sends a request?"
+expected_files = ["source/core/Ky.ts"]
+expected_symbols = ["Ky.constructor"]
+
+[[questions]]
+id = "ky-prefix-base-url"
+repo = "sindresorhus/ky@0d59458a0a58e1c3d7c6db0ab17ed5c7cd671e47"
+question = "How are the prefix and baseUrl options combined with the request URL?"
+expected_files = ["source/core/Ky.ts"]
+expected_symbols = ["Ky.constructor"]
+
+[[questions]]
+id = "ky-max-response-size"
+repo = "sindresorhus/ky@0d59458a0a58e1c3d7c6db0ab17ed5c7cd671e47"
+question = "How does ky stop reading a response body that is larger than maxResponseSize?"
+expected_files = ["source/utils/body.ts"]
+expected_symbols = ["limitResponseSize"]
