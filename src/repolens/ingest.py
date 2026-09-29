@@ -6,6 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Protocol
 
+from repolens import chunking
 from repolens.chunking import LANGUAGES, Chunk, chunk_file
 from repolens.embedding import Embedder
 from repolens.snapshot import RepoRef, Snapshot
@@ -58,12 +59,15 @@ def ingest(
 ) -> IngestResult:
     """Chunk, embed and store a repository's Python and TypeScript sources.
 
-    Each Snapshot is ingested once. Later calls return the stored counts.
+    Each Snapshot is ingested once per index version. Later calls return the stored counts.
     """
     snapshot = source.resolve(repo)
+    version = index_version(embedder)
     stored = store.find(snapshot)
-    if stored:
+    if stored and stored.index_version == version:
         return IngestResult(snapshot, stored.file_count, stored.chunk_count, created=False)
+    if stored:
+        store.delete(snapshot)
 
     with TemporaryDirectory() as tmp:
         source.download(snapshot, Path(tmp))
@@ -73,8 +77,13 @@ def ingest(
 
     chunks = [chunk for path, text in files for chunk in chunk_file(path, text)]
     embeddings = embedder.embed([_embedding_text(chunk) for chunk in chunks])
-    store.save(snapshot, len(files), chunks, embeddings, embedder.model)
+    store.save(snapshot, len(files), chunks, embeddings, embedder.model, version)
     return IngestResult(snapshot, len(files), len(chunks), created=True)
+
+
+def index_version(embedder: Embedder) -> str:
+    """What a Snapshot's stored Chunks depend on: the chunker and the embedding model."""
+    return f"chunker-{chunking.CHUNKER_VERSION}/{embedder.model}"
 
 
 def _source_files(root: Path) -> list[tuple[str, str]]:

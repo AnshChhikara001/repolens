@@ -7,6 +7,10 @@ import tree_sitter_python
 import tree_sitter_typescript
 from tree_sitter import Language, Node, Parser
 
+# Part of each Snapshot's index version: bump it when a change here changes the Chunks of a
+# repository, so Snapshots ingested before the change are ingested again.
+CHUNKER_VERSION = 2
+
 MODULE_SYMBOL = "<module>"
 MAX_CHUNK_LINES = 150
 # Module-level code shorter than this joins the definition next to it.

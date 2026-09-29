@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS chunks (
 
 CREATE INDEX IF NOT EXISTS chunks_snapshot_id_idx ON chunks (snapshot_id);
 
+-- Snapshots stored before index versions get '', which matches no version.
+ALTER TABLE snapshots ADD COLUMN IF NOT EXISTS index_version text NOT NULL DEFAULT '';
+
 -- Full-text search over path segments, symbol parts and code. Dots and slashes split
 -- `app/auth.py` and `LoginService.login` into words; the parser already splits `_`.
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS search tsvector GENERATED ALWAYS AS (
@@ -80,6 +83,7 @@ RRF_K = 60
 class StoredSnapshot:
     file_count: int
     chunk_count: int
+    index_version: str
 
 
 class ChunkStore:
@@ -94,9 +98,15 @@ class ChunkStore:
     def find(self, snapshot: Snapshot) -> StoredSnapshot | None:
         with psycopg.connect(self.url) as conn:
             row = conn.execute(
-                "SELECT file_count, chunk_count FROM snapshots WHERE id = %s", (str(snapshot),)
+                "SELECT file_count, chunk_count, index_version FROM snapshots WHERE id = %s",
+                (str(snapshot),),
             ).fetchone()
-        return StoredSnapshot(row[0], row[1]) if row else None
+        return StoredSnapshot(*row) if row else None
+
+    def delete(self, snapshot: Snapshot) -> None:
+        """Remove a Snapshot and its Chunks."""
+        with psycopg.connect(self.url) as conn:
+            conn.execute("DELETE FROM snapshots WHERE id = %s", (str(snapshot),))
 
     def save(
         self,
@@ -105,18 +115,20 @@ class ChunkStore:
         chunks: Sequence[Chunk],
         embeddings: Sequence[Sequence[float]],
         model: str,
+        index_version: str,
     ) -> None:
         """Store a Snapshot and all its Chunks in one transaction."""
         with psycopg.connect(self.url) as conn, conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO snapshots (id, owner, name, sha, embedding_model, file_count,"
-                " chunk_count) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                "INSERT INTO snapshots (id, owner, name, sha, embedding_model, index_version,"
+                " file_count, chunk_count) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     str(snapshot),
                     snapshot.owner,
                     snapshot.name,
                     snapshot.sha,
                     model,
+                    index_version,
                     files,
                     len(chunks),
                 ),

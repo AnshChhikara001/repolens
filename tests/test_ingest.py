@@ -1,8 +1,11 @@
 from pathlib import Path
 
+import psycopg
 import pytest
+from conftest import TEST_DATABASE_URL
 from fakes import SHA, FakeEmbedder, FixtureSource
 
+from repolens import chunking
 from repolens.ingest import IngestError, IngestResult, ingest
 from repolens.snapshot import RepoRef, Snapshot
 from repolens.store import ChunkStore
@@ -36,6 +39,44 @@ def test_reingesting_a_snapshot_does_nothing(store: ChunkStore) -> None:
     )
     assert source.downloads == 0
     assert embedder.texts == []
+
+
+class OtherEmbedder(FakeEmbedder):
+    model = "other-embedding"
+
+
+def test_a_new_embedding_model_means_ingesting_again(store: ChunkStore) -> None:
+    ingest(REPO, FixtureSource(), FakeEmbedder(), store)
+    source = FixtureSource()
+
+    result = ingest(REPO, source, OtherEmbedder(), store)
+
+    assert result.created
+    assert source.downloads == 1
+    assert len(store.chunks(result.snapshot)) == result.chunk_count
+
+
+def test_a_new_chunker_version_means_ingesting_again(
+    store: ChunkStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ingest(REPO, FixtureSource(), FakeEmbedder(), store)
+    monkeypatch.setattr(chunking, "CHUNKER_VERSION", chunking.CHUNKER_VERSION + 1)
+
+    result = ingest(REPO, FixtureSource(), FakeEmbedder(), store)
+
+    assert result.created
+    assert len(store.chunks(result.snapshot)) == result.chunk_count
+
+
+def test_a_snapshot_from_before_index_versions_is_ingested_again(store: ChunkStore) -> None:
+    ingest(REPO, FixtureSource(), FakeEmbedder(), store)
+    with psycopg.connect(TEST_DATABASE_URL) as conn:
+        conn.execute("ALTER TABLE snapshots DROP COLUMN index_version")
+    store.setup()
+
+    result = ingest(REPO, FixtureSource(), FakeEmbedder(), store)
+
+    assert result.created
 
 
 def test_embedded_text_names_the_file_and_symbol(store: ChunkStore) -> None:
