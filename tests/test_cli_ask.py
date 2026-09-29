@@ -2,15 +2,7 @@ import re
 from pathlib import Path
 
 import pytest
-from conftest import TEST_DATABASE_URL
-from fakes import (
-    SHA,
-    FailingLLM,
-    KeywordReranker,
-    ScriptedLLM,
-    fake_embedder,
-    fixture_source,
-)
+from fakes import SHA, FailingLLM, ScriptedLLM
 from typer.testing import CliRunner
 
 from repolens import cli
@@ -41,28 +33,6 @@ FINDINGS = CodeFindings(
         ),
     ]
 )
-
-
-@pytest.fixture
-def offline(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Everything but the chat model: fixture repo, fake embeddings, test database."""
-    monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    monkeypatch.setenv("GOOGLE_API_KEY", "g-test")
-    monkeypatch.setattr(cli, "GitHubSource", fixture_source)
-    monkeypatch.setattr(cli, "OpenAIEmbedder", fake_embedder)
-    monkeypatch.setattr(cli, "CrossEncoderReranker", KeywordReranker)
-
-
-@pytest.fixture
-def fakes(monkeypatch: pytest.MonkeyPatch, offline: None) -> ScriptedLLM:
-    model = ScriptedLLM()
-
-    def scripted_model(settings: Settings) -> ScriptedLLM:
-        return model
-
-    monkeypatch.setattr(cli, "build_llm", scripted_model)
-    return model
 
 
 USAGE = r"2 calls · 2,000 in / 200 out tokens · \d+\.\ds\n"

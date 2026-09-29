@@ -43,6 +43,8 @@ class Report:
     snapshot: Snapshot
     answer: str
     findings: list[Finding]
+    rejected: list[Citation]
+    """The Citations the verifier dropped."""
     calls: list[ModelCall]
     duration_s: float
 

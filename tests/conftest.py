@@ -3,9 +3,11 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from fakes import KeywordReranker, ScriptedLLM, fake_embedder, fixture_source
 from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
+from repolens import cli
 from repolens.config import Settings
 from repolens.store import ChunkStore
 
@@ -45,3 +47,25 @@ def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         monkeypatch.delenv(name.upper(), raising=False)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("RUNS_DIR", str(tmp_path / "runs"))
+
+
+@pytest.fixture
+def offline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Everything but the chat model: fixture repo, fake embeddings, test database."""
+    monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("GOOGLE_API_KEY", "g-test")
+    monkeypatch.setattr(cli, "GitHubSource", fixture_source)
+    monkeypatch.setattr(cli, "OpenAIEmbedder", fake_embedder)
+    monkeypatch.setattr(cli, "CrossEncoderReranker", KeywordReranker)
+
+
+@pytest.fixture
+def fakes(monkeypatch: pytest.MonkeyPatch, offline: None) -> ScriptedLLM:
+    model = ScriptedLLM()
+
+    def scripted_model(settings: Settings) -> ScriptedLLM:
+        return model
+
+    monkeypatch.setattr(cli, "build_llm", scripted_model)
+    return model

@@ -11,14 +11,25 @@ from repolens.report import Citation, Finding
 _DEFINITION = r"(?:def|class|function|interface|type|enum|const|let|var)\s+{name}(?!\w)"
 
 
-def verify(findings: Sequence[Finding], lines_read: LinesRead) -> list[Finding]:
-    """Drop the Citations to lines the model wasn't shown, then the Findings left uncited."""
+def verify(
+    findings: Sequence[Finding], lines_read: LinesRead
+) -> tuple[list[Finding], list[Citation]]:
+    """Drop the Citations to lines the model wasn't shown, then the Findings left uncited.
+
+    Returns the verified Findings and the rejected Citations.
+    """
     verified: list[Finding] = []
+    rejected: list[Citation] = []
     for finding in findings:
-        citations = [c for c in finding.citations if _valid(c, lines_read)]
+        citations: list[Citation] = []
+        for citation in finding.citations:
+            if _valid(citation, lines_read):
+                citations.append(citation)
+            else:
+                rejected.append(citation)
         if citations:
             verified.append(Finding(claim=finding.claim, citations=citations))
-    return verified
+    return verified, rejected
 
 
 def _valid(citation: Citation, lines_read: LinesRead) -> bool:
