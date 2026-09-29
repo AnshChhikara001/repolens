@@ -88,7 +88,7 @@ expected_symbols = ["get_typer_from_module"]
 id = "ky-retry-decision"
 repo = "sindresorhus/ky@0d59458a0a58e1c3d7c6db0ab17ed5c7cd671e47"
 question = "Which errors and status codes does ky retry, and when does it give up?"
-expected_files = ["source/core/Ky.ts"]
+expected_files = ["source/core/Ky.ts", "source/utils/normalize.ts"]
 expected_symbols = ["Ky.#calculateRetryDelay"]
 
 [[questions]]
