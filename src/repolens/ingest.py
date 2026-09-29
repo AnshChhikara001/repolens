@@ -10,7 +10,7 @@ from repolens import chunking
 from repolens.chunking import LANGUAGES, Chunk, chunk_file
 from repolens.embedding import Embedder
 from repolens.snapshot import RepoRef, Snapshot
-from repolens.store import ChunkStore
+from repolens.store import ChunkStore, SnapshotExistsError
 
 MAX_FILES = 2000
 MAX_FILE_BYTES = 256_000
@@ -77,7 +77,12 @@ def ingest(
 
     chunks = [chunk for path, text in files for chunk in chunk_file(path, text)]
     embeddings = embedder.embed([_embedding_text(chunk) for chunk in chunks])
-    store.save(snapshot, len(files), chunks, embeddings, embedder.model, version)
+    try:
+        store.save(snapshot, len(files), chunks, embeddings, embedder.model, version)
+    except SnapshotExistsError as exc:
+        raise IngestError(
+            f"{snapshot} is being ingested elsewhere at the same time, try again once it's done"
+        ) from exc
     return IngestResult(snapshot, len(files), len(chunks), created=True)
 
 

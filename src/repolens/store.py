@@ -79,6 +79,10 @@ LIMIT %(limit)s
 RRF_K = 60
 
 
+class SnapshotExistsError(Exception):
+    """The Snapshot was stored by someone else first."""
+
+
 @dataclass(frozen=True)
 class StoredSnapshot:
     file_count: int
@@ -117,22 +121,28 @@ class ChunkStore:
         model: str,
         index_version: str,
     ) -> None:
-        """Store a Snapshot and all its Chunks in one transaction."""
+        """Store a Snapshot and all its Chunks in one transaction.
+
+        Raises SnapshotExistsError if the Snapshot is already stored.
+        """
         with psycopg.connect(self.url) as conn, conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO snapshots (id, owner, name, sha, embedding_model, index_version,"
-                " file_count, chunk_count) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                (
-                    str(snapshot),
-                    snapshot.owner,
-                    snapshot.name,
-                    snapshot.sha,
-                    model,
-                    index_version,
-                    files,
-                    len(chunks),
-                ),
-            )
+            try:
+                cur.execute(
+                    "INSERT INTO snapshots (id, owner, name, sha, embedding_model, index_version,"
+                    " file_count, chunk_count) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    (
+                        str(snapshot),
+                        snapshot.owner,
+                        snapshot.name,
+                        snapshot.sha,
+                        model,
+                        index_version,
+                        files,
+                        len(chunks),
+                    ),
+                )
+            except psycopg.errors.UniqueViolation as exc:
+                raise SnapshotExistsError(str(snapshot)) from exc
             with cur.copy(
                 "COPY chunks (snapshot_id, path, start_line, end_line, symbol, content, embedding)"
                 " FROM STDIN"

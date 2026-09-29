@@ -79,6 +79,25 @@ def test_a_snapshot_from_before_index_versions_is_ingested_again(store: ChunkSto
     assert result.created
 
 
+class RacingSource(FixtureSource):
+    """Another ingest of the same Snapshot finishes while this one downloads."""
+
+    def __init__(self, store: ChunkStore) -> None:
+        super().__init__()
+        self.store = store
+
+    def download(self, snapshot: Snapshot, dest: Path) -> None:
+        ingest(REPO, FixtureSource(), FakeEmbedder(), self.store)
+        super().download(snapshot, dest)
+
+
+def test_ingesting_a_snapshot_twice_at_once_fails_cleanly(store: ChunkStore) -> None:
+    with pytest.raises(IngestError, match=f"acme/shop@{SHA} is being ingested elsewhere"):
+        ingest(REPO, RacingSource(store), FakeEmbedder(), store)
+
+    assert store.find(Snapshot("acme", "shop", SHA)) is not None
+
+
 def test_embedded_text_names_the_file_and_symbol(store: ChunkStore) -> None:
     embedder = FakeEmbedder()
 
