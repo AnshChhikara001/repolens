@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Annotated
 
 import openai
@@ -10,13 +11,15 @@ from repolens import __version__
 from repolens.config import ModelConfigError, Settings
 from repolens.doctor import healthy, probe_database, run_checks
 from repolens.embedding import OpenAIEmbedder
+from repolens.evaluation import Question, evaluate, load_questions, results
 from repolens.github import GitHubSource
 from repolens.ingest import IngestError, IngestResult, ingest
 from repolens.llm import LLMError
 from repolens.models import build_llm
+from repolens.report import Report
 from repolens.rerank import CrossEncoderReranker
 from repolens.run import RunConfig, run
-from repolens.snapshot import RepoRef
+from repolens.snapshot import RepoRef, Snapshot
 from repolens.store import ChunkStore
 
 app = typer.Typer(
@@ -87,6 +90,49 @@ def ask(
         with _timeout_as_message(settings.chat_timeout):
             report = run(question, result.snapshot, config)
     typer.echo(str(report))
+
+
+@app.command("eval")
+def eval_command(
+    dataset: Annotated[
+        Path, typer.Option(help="A TOML file of questions pinned to commit SHAs.")
+    ] = Path("evals/questions.toml"),
+    rerank: Annotated[
+        bool, typer.Option(help="Rerank the retrieved code before the model reads it.")
+    ] = True,
+) -> None:
+    """Answer the eval questions and print the results as markdown tables."""
+    try:
+        questions = load_questions(dataset)
+    except OSError as exc:
+        typer.echo(f"error: {dataset}: {exc.strerror}", err=True)
+        raise typer.Exit(code=1) from exc
+    except ValueError as exc:
+        typer.echo(f"error: {dataset}: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    settings = Settings()
+    embedder = _embedder(settings)
+    with _errors_as_messages():
+        llm = build_llm(settings)
+        store = ChunkStore(settings.database_url)
+        reranker = CrossEncoderReranker() if rerank else None
+        config = RunConfig(llm, embedder, store, reranker, settings.runs_dir)
+        snapshots: dict[str, Snapshot] = {}
+
+        def answer(question: Question) -> Report:
+            if question.repo not in snapshots:
+                result = _ingest(RepoRef.parse(question.repo), settings, embedder, store)
+                if result.created:
+                    typer.echo(f"Ingested {_ingest_summary(result)}", err=True)
+                snapshots[question.repo] = result.snapshot
+            number = questions.index(question) + 1
+            typer.echo(f"[{number}/{len(questions)}] {question.id}", err=True)
+            return run(question.question, snapshots[question.repo], config)
+
+        outcomes = evaluate(questions, answer)
+    model = llm.name.partition(":")[2]
+    typer.echo(f"Model: {model} · Reranking: {'on' if rerank else 'off'}\n")
+    typer.echo(results(outcomes))
 
 
 def _parse_repo(repo: str) -> RepoRef:
