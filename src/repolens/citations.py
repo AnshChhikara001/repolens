@@ -23,7 +23,10 @@ def verify(
     for finding in findings:
         citations: list[Citation] = []
         for citation in finding.citations:
-            (citations if _valid(citation, lines_read) else rejected).append(citation)
+            if _valid(citation, lines_read):
+                citations.append(citation)
+            else:
+                rejected.append(citation)
         if citations:
             verified.append(Finding(claim=finding.claim, citations=citations))
     return verified, rejected

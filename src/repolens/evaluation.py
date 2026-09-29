@@ -68,36 +68,38 @@ class Outcome:
     error: str | None = None
 
 
-def evaluate(questions: Sequence[Question], answer: Callable[[Question], Report]) -> list[Outcome]:
-    """Answer every question. A failed model call fails only its own question."""
+def evaluate(
+    questions: Sequence[Question], run_question: Callable[[Question], Report]
+) -> list[Outcome]:
+    """Run every question. A failed model call fails only its own question."""
     outcomes: list[Outcome] = []
     for question in questions:
         try:
-            outcomes.append(Outcome(question, answer(question)))
+            outcomes.append(Outcome(question, run_question(question)))
         except (LLMError, TimeoutError) as exc:
             outcomes.append(Outcome(question, error=str(exc)))
     return outcomes
 
 
-def results(outcomes: Sequence[Outcome]) -> str:
+def results_table(outcomes: Sequence[Outcome]) -> str:
     """A markdown summary of the eval, a row per question, and the errors."""
-    scores = [_Score(o.question, o.report) for o in outcomes if o.report is not None]
+    scores = {o.question.id: _score(o.question, o.report) for o in outcomes if o.report}
     errors = [o for o in outcomes if o.error is not None]
     lines = [
-        *_summary(len(outcomes), len(errors), scores),
+        *_summary(len(outcomes), len(errors), list(scores.values())),
         "",
         "| Question | Files | Symbols | Citations valid | Findings | Model s | Run s"
         " | Tokens in / out | Est. cost |",
         "|---|---|---|---|---|---|---|---|---|",
     ]
     for outcome in outcomes:
-        if outcome.report is None:
+        score = scores.get(outcome.question.id)
+        if score is None:
             lines.append(f"| {outcome.question.id} | error |{' |' * 7}")
             continue
-        score = _Score(outcome.question, outcome.report)
         symbols = _fraction(score.symbols_found, score.symbols) if score.symbols else "-"
         lines.append(
-            f"| {score.id} | {_fraction(score.files_found, score.files)} | {symbols}"
+            f"| {outcome.question.id} | {_fraction(score.files_found, score.files)} | {symbols}"
             f" | {_fraction(score.valid, score.valid + score.rejected)} | {score.findings}"
             f" | {score.model_s:.1f} | {score.run_s:.1f}"
             f" | {score.input_tokens:,} / {score.output_tokens:,} | {_dollars(score.cost)} |"
@@ -107,29 +109,49 @@ def results(outcomes: Sequence[Outcome]) -> str:
     return "\n".join(lines)
 
 
+@dataclass(frozen=True)
 class _Score:
     """What one Report got right, and what it used."""
 
-    def __init__(self, question: Question, report: Report) -> None:
-        citations = [citation for finding in report.findings for citation in finding.citations]
-        cited_files = {citation.path for citation in citations}
-        cited_symbols = [citation.symbol for citation in citations if citation.symbol]
-        self.id = question.id
-        self.files = len(question.expected_files)
-        self.files_found = len(set(question.expected_files) & cited_files)
-        self.symbols = len(question.expected_symbols)
-        self.symbols_found = sum(
-            any(s == expected or s.endswith(f".{expected}") for s in cited_symbols)
+    files: int
+    files_found: int
+    symbols: int
+    symbols_found: int
+    valid: int
+    rejected: int
+    findings: int
+    model_s: float
+    run_s: float
+    input_tokens: int
+    output_tokens: int
+    cost: float | None
+
+
+def _score(question: Question, report: Report) -> _Score:
+    citations = [citation for finding in report.findings for citation in finding.citations]
+    # A symbol counts only where it was expected: `get_command` in another file is another one.
+    expected_symbols = [
+        citation.symbol
+        for citation in citations
+        if citation.symbol and citation.path in question.expected_files
+    ]
+    return _Score(
+        files=len(question.expected_files),
+        files_found=len(set(question.expected_files) & {c.path for c in citations}),
+        symbols=len(question.expected_symbols),
+        symbols_found=sum(
+            any(s == expected or s.endswith(f".{expected}") for s in expected_symbols)
             for expected in question.expected_symbols
-        )
-        self.valid = len(citations)
-        self.rejected = len(report.rejected)
-        self.findings = len(report.findings)
-        self.model_s = sum(call.latency_s for call in report.calls)
-        self.run_s = report.duration_s
-        self.input_tokens = sum(call.input_tokens for call in report.calls)
-        self.output_tokens = sum(call.output_tokens for call in report.calls)
-        self.cost = _cost(report.calls)
+        ),
+        valid=len(citations),
+        rejected=len(report.rejected),
+        findings=len(report.findings),
+        model_s=sum(call.latency_s for call in report.calls),
+        run_s=report.duration_s,
+        input_tokens=sum(call.input_tokens for call in report.calls),
+        output_tokens=sum(call.output_tokens for call in report.calls),
+        cost=_cost(report.calls),
+    )
 
 
 def _summary(questions: int, errors: int, scores: list[_Score]) -> list[str]:

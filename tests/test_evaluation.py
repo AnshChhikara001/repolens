@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from repolens.evaluation import Outcome, Question, evaluate, load_questions, results
+from repolens.evaluation import Outcome, Question, evaluate, load_questions, results_table
 from repolens.llm import LLMError, ModelCall
 from repolens.report import Citation, Finding, Report
 from repolens.snapshot import Snapshot
@@ -145,7 +145,7 @@ def test_results_score_each_question_by_its_verified_citations() -> None:
         Outcome(BILLING, report([], calls=[call()], duration_s=3.0)),
     ]
 
-    table = rows(results(outcomes))
+    table = rows(results_table(outcomes))
 
     # Question: files, symbols, citations valid, findings, model s, run s, tokens, est. cost
     assert table["passwords"] == [
@@ -168,7 +168,7 @@ def test_results_summarise_the_whole_eval() -> None:
         Outcome(BILLING, error="503"),
     ]
 
-    table = rows(results(outcomes))
+    table = rows(results_table(outcomes))
 
     assert table["Questions"] == ["3 (1 error)"]
     assert table["Citation validity"] == ["1/2 (50%)"]
@@ -182,7 +182,7 @@ def test_results_summarise_the_whole_eval() -> None:
 
 
 def test_errors_are_listed_under_the_results() -> None:
-    table = results([Outcome(BILLING, error="google:gemini-3.1-flash-lite timed out")])
+    table = results_table([Outcome(BILLING, error="google:gemini-3.1-flash-lite timed out")])
 
     assert rows(table)["billing"][0] == "error"
     assert "- billing: google:gemini-3.1-flash-lite timed out" in table
@@ -193,13 +193,20 @@ def test_cost_is_estimated_at_list_prices_by_model_name() -> None:
     outcomes = [Outcome(BILLING, report([], calls=calls))]
 
     # $2 in / $10 out per 1M tokens: 2 x (10,000 x 2 + 1,000 x 10) / 1M
-    assert rows(results(outcomes))["billing"][-1] == "$0.0600"
+    assert rows(results_table(outcomes))["billing"][-1] == "$0.0600"
 
 
 def test_a_model_without_a_list_price_has_no_cost_estimate() -> None:
     outcomes = [Outcome(BILLING, report([], calls=[call("local:mystery-7b")]))]
 
-    table = rows(results(outcomes))
+    table = rows(results_table(outcomes))
 
     assert table["billing"][-1] == "-"
     assert table["Est. cost"] == ["-"]
+
+
+def test_an_expected_symbol_counts_only_in_an_expected_file() -> None:
+    elsewhere = Citation(path="app/legacy.py", start_line=1, end_line=5, symbol="hash_password")
+    outcomes = [Outcome(PASSWORDS, report([Finding(claim="Hashed.", citations=[elsewhere])]))]
+
+    assert rows(results_table(outcomes))["passwords"][1] == "0/2"

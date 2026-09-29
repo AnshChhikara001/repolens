@@ -11,7 +11,7 @@ from repolens import __version__
 from repolens.config import ModelConfigError, Settings
 from repolens.doctor import healthy, probe_database, run_checks
 from repolens.embedding import OpenAIEmbedder
-from repolens.evaluation import Question, evaluate, load_questions, results
+from repolens.evaluation import Question, evaluate, load_questions, results_table
 from repolens.github import GitHubSource
 from repolens.ingest import IngestError, IngestResult, ingest
 from repolens.llm import LLMError
@@ -118,21 +118,21 @@ def eval_command(
         reranker = CrossEncoderReranker() if rerank else None
         config = RunConfig(llm, embedder, store, reranker, settings.runs_dir)
         snapshots: dict[str, Snapshot] = {}
+        numbers = {question.id: number for number, question in enumerate(questions, 1)}
 
-        def answer(question: Question) -> Report:
+        def run_question(question: Question) -> Report:
             if question.repo not in snapshots:
                 result = _ingest(RepoRef.parse(question.repo), settings, embedder, store)
                 if result.created:
                     typer.echo(f"Ingested {_ingest_summary(result)}", err=True)
                 snapshots[question.repo] = result.snapshot
-            number = questions.index(question) + 1
-            typer.echo(f"[{number}/{len(questions)}] {question.id}", err=True)
+            typer.echo(f"[{numbers[question.id]}/{len(questions)}] {question.id}", err=True)
             return run(question.question, snapshots[question.repo], config)
 
-        outcomes = evaluate(questions, answer)
+        outcomes = evaluate(questions, run_question)
     model = llm.name.partition(":")[2]
     typer.echo(f"Model: {model} · Reranking: {'on' if rerank else 'off'}\n")
-    typer.echo(results(outcomes))
+    typer.echo(results_table(outcomes))
 
 
 def _parse_repo(repo: str) -> RepoRef:

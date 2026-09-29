@@ -27,6 +27,10 @@ CHECKED = Finding(
 )
 
 
+# Scores every Chunk the same, so reranking keeps the search order.
+SEARCH_ORDER = KeywordReranker()
+
+
 @pytest.fixture
 def ingested(store: ChunkStore) -> ChunkStore:
     ingest(RepoRef("acme", "shop"), FixtureSource(), FakeEmbedder(), store)
@@ -42,7 +46,7 @@ def config(
     store: ChunkStore,
     llm: ScriptedLLM,
     runs_dir: Path,
-    reranker: KeywordReranker | None = KeywordReranker(),  # noqa: B008
+    reranker: KeywordReranker | None = SEARCH_ORDER,
 ) -> RunConfig:
     return RunConfig(
         llm=llm, embedder=FakeEmbedder(), store=store, reranker=reranker, runs_dir=runs_dir
