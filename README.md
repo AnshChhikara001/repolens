@@ -47,7 +47,7 @@ uv run pytest               # database tests are skipped if Postgres isn't runni
 ## Roadmap
 
 - [x] **M0** Project scaffold, CI, local Postgres
-- [ ] **M1** End-to-end slice: ingest a repo snapshot, code Q&A with citations (CLI)
+- [x] **M1** End-to-end slice: ingest a repo snapshot, code Q&A with citations (CLI)
 - [ ] **M2** Parallel specialists, re-planning, cost cap, tracing
 - [ ] **M3** Guardrails, MCP tools with human approval, evaluation suite
 - [ ] **M4** Streaming API + UI, public demo, evaluation results
