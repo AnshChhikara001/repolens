@@ -1,29 +1,25 @@
 """A Run: one question answered against one Snapshot.
 
-For now the graph is a single fixed Step: the Code Navigator finds cited Findings, the
-citation verifier drops those the Snapshot doesn't back (ADR-0007), and the Report Writer
-turns the rest into a Report. The Supervisor replaces the fixed Step in M2. Every model call
-is priced and written to the cost ledger, even when the Run fails (ADR-0004).
+The Code Navigator finds cited Findings, the citation verifier drops those the Snapshot
+doesn't back (ADR-0007), and the Report Writer turns the rest into a Report. Every model call
+is counted in the Report and written to the run log, which also records why a failed Run failed.
 """
 
-from contextlib import suppress
-from dataclasses import dataclass
-from typing import NotRequired, TypedDict
+import time
+from dataclasses import asdict, dataclass
+from pathlib import Path
 from uuid import uuid4
 
-import psycopg
-from langchain_core.language_models import BaseChatModel
-from langgraph.graph import START, StateGraph
-from langgraph.graph.state import CompiledStateGraph
+from pydantic import BaseModel
 
 from repolens.citations import verify
 from repolens.code_navigator import find_code
-from repolens.costs import CostTracker, PriceTable
 from repolens.embedding import Embedder
-from repolens.ledger import Ledger
-from repolens.report import Finding, Report
+from repolens.llm import LLM, ModelCall, Reply
+from repolens.report import Report
 from repolens.report_writer import write_answer
 from repolens.rerank import Reranker
+from repolens.run_log import RunLog
 from repolens.snapshot import Snapshot
 from repolens.store import ChunkStore
 
@@ -32,78 +28,53 @@ NOT_FOUND = "Nothing in {snapshot} answers this question."
 
 @dataclass(frozen=True)
 class RunConfig:
-    """The models and stores a Run uses."""
+    """The model, stores and log directory a Run uses."""
 
-    model: BaseChatModel
+    llm: LLM
     embedder: Embedder
     store: ChunkStore
     reranker: Reranker
-    prices: PriceTable
-    ledger: Ledger
-
-
-class RunState(TypedDict):
-    question: str
-    snapshot: Snapshot
-    findings: NotRequired[list[Finding]]
-    answer: NotRequired[str]
-
-
-class RunUpdate(TypedDict, total=False):
-    findings: list[Finding]
-    answer: str
+    runs_dir: Path
 
 
 def run(question: str, snapshot: Snapshot, config: RunConfig) -> Report:
     """Answer a question about an ingested Snapshot with a Report of verified Findings."""
     run_id = uuid4()
-    tracker = CostTracker(config.prices)
+    started = time.perf_counter()
+    log = RunLog(config.runs_dir / f"{run_id}.jsonl")
+    log.write("start", run_id=run_id, snapshot=snapshot, question=question, model=config.llm.name)
+    llm = _RecordingLLM(config.llm, log)
     try:
-        output = _graph(config).invoke(  # pyright: ignore[reportUnknownMemberType]
-            {"question": question, "snapshot": snapshot},
-            {"callbacks": [tracker], "run_id": run_id},
-            version="v2",
-        )
-    except BaseException:
-        # Record what the failed Run spent, without hiding why it failed.
-        with suppress(psycopg.Error):
-            config.ledger.record(run_id, snapshot, tracker.calls)
-        raise
-    config.ledger.record(run_id, snapshot, tracker.calls)
-    state = output.value
-    return Report(
-        run_id=run_id,
-        question=question,
-        snapshot=snapshot,
-        answer=state.get("answer", NOT_FOUND.format(snapshot=snapshot)),
-        findings=state.get("findings", []),
-        calls=tracker.calls,
-    )
-
-
-def _graph(config: RunConfig) -> CompiledStateGraph[RunState, None, RunState, RunState]:
-    def code_navigator(state: RunState) -> RunUpdate:
         findings = find_code(
-            state["question"],
-            state["snapshot"],
-            config.model,
-            config.embedder,
-            config.store,
-            config.reranker,
+            question, snapshot, llm, config.embedder, config.store, config.reranker
         )
-        return {"findings": findings}
+        findings = verify(findings, snapshot, config.store)
+        if findings:
+            answer = write_answer(question, findings, llm)
+        else:
+            answer = NOT_FOUND.format(snapshot=snapshot)
+    except BaseException as exc:
+        log.write("error", error=repr(exc))
+        raise
+    duration_s = time.perf_counter() - started
+    log.write("end", findings=len(findings), answer=answer, duration_s=duration_s)
+    return Report(run_id, question, snapshot, answer, findings, llm.calls, duration_s)
 
-    def citation_verifier(state: RunState) -> RunUpdate:
-        return {"findings": verify(state.get("findings", []), state["snapshot"], config.store)}
 
-    def report_writer(state: RunState) -> RunUpdate:
-        findings = state.get("findings", [])
-        if not findings:
-            return {"answer": NOT_FOUND.format(snapshot=state["snapshot"])}
-        return {"answer": write_answer(state["question"], findings, config.model)}
+class _RecordingLLM:
+    """Passes calls on to the Run's model and records each one."""
 
-    # LangGraph's signatures mention unparametrised generics, hence the ignores.
-    graph = StateGraph(RunState)
-    graph.add_sequence([code_navigator, citation_verifier, report_writer])  # pyright: ignore[reportUnknownMemberType]
-    graph.add_edge(START, "code_navigator")
-    return graph.compile()  # pyright: ignore[reportUnknownMemberType]
+    def __init__(self, llm: LLM, log: RunLog) -> None:
+        self.name = llm.name
+        self.calls: list[ModelCall] = []
+        self._llm = llm
+        self._log = log
+
+    def structured[T: BaseModel](self, system: str, user: str, schema: type[T]) -> Reply[T]:
+        reply = self._llm.structured(system, user, schema)
+        call = ModelCall(
+            self.name, schema.__name__, reply.input_tokens, reply.output_tokens, reply.latency_s
+        )
+        self.calls.append(call)
+        self._log.write("call", **asdict(call))
+        return reply

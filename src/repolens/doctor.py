@@ -5,6 +5,7 @@ import psycopg
 from pydantic import SecretStr
 
 from repolens.config import Settings
+from repolens.models import PROVIDERS, chat_provider
 
 
 class DatabaseUnavailable(Exception):
@@ -41,13 +42,22 @@ def run_checks(settings: Settings, probe: Callable[[str], str]) -> list[Check]:
     except DatabaseUnavailable as exc:
         database = Check("database", False, str(exc))
 
+    required_key = PROVIDERS.get(chat_provider(settings), (None, None))[1]
     keys: list[tuple[str, SecretStr | None, str, bool]] = [
-        ("GOOGLE_API_KEY", settings.google_api_key, "Gemini chat models", True),
+        (
+            "GOOGLE_API_KEY",
+            settings.google_api_key,
+            "Gemini chat models",
+            required_key == "google_api_key",
+        ),
+        (
+            "ANTHROPIC_API_KEY",
+            settings.anthropic_api_key,
+            "Claude chat models",
+            required_key == "anthropic_api_key",
+        ),
         ("OPENAI_API_KEY", settings.openai_api_key, "embeddings", True),
-        ("GROQ_API_KEY", settings.groq_api_key, "Groq fallback models", False),
         ("GITHUB_TOKEN", settings.github_token, "higher GitHub API rate limits", False),
-        ("LANGFUSE_PUBLIC_KEY", settings.langfuse_public_key, "Langfuse tracing", False),
-        ("LANGFUSE_SECRET_KEY", settings.langfuse_secret_key, "Langfuse tracing", False),
     ]
     return [database] + [
         Check(name, value is not None, purpose, required) for name, value, purpose, required in keys

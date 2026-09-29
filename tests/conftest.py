@@ -7,7 +7,6 @@ from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 from repolens.config import Settings
-from repolens.ledger import Ledger
 from repolens.store import ChunkStore
 
 TEST_DATABASE_URL = os.environ.get(
@@ -40,18 +39,9 @@ def store() -> ChunkStore:
 
 
 @pytest.fixture
-def ledger(store: ChunkStore) -> Ledger:
-    """An empty cost ledger in the test database."""
-    ledger = Ledger(TEST_DATABASE_URL)
-    ledger.setup()
-    with psycopg.connect(TEST_DATABASE_URL) as conn:
-        conn.execute("TRUNCATE ledger")
-    return ledger
-
-
-@pytest.fixture
 def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Keep the developer's shell and .env out of the tests."""
     for name in Settings.model_fields:
         monkeypatch.delenv(name.upper(), raising=False)
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("RUNS_DIR", str(tmp_path / "runs"))

@@ -64,19 +64,38 @@ def test_missing_openai_key_is_unhealthy() -> None:
 def test_missing_optional_keys_are_reported_but_healthy() -> None:
     checks = run_checks(configured(), reachable)
 
-    groq = check_named(checks, "GROQ_API_KEY")
+    anthropic = check_named(checks, "ANTHROPIC_API_KEY")
     assert healthy(checks)
-    assert not groq.ok
-    assert not groq.required
+    assert not anthropic.ok
+    assert not anthropic.required
+
+
+def test_the_configured_chat_model_decides_which_key_is_required() -> None:
+    settings = Settings(
+        chat_model="anthropic:claude-sonnet-5",
+        anthropic_api_key=SecretStr("a-key"),
+        openai_api_key=SecretStr("o-key"),
+    )
+
+    checks = run_checks(settings, reachable)
+
+    assert healthy(checks)
+    assert not check_named(checks, "GOOGLE_API_KEY").required
+
+
+def test_a_local_chat_model_needs_no_built_in_key() -> None:
+    settings = Settings(chat_model="local:model", openai_api_key=SecretStr("o-key"))
+
+    assert healthy(run_checks(settings, reachable))
 
 
 def test_empty_key_in_env_file_counts_as_missing(tmp_path: Path) -> None:
-    (tmp_path / ".env").write_text("GOOGLE_API_KEY=\nGROQ_API_KEY=q-key\n")
+    (tmp_path / ".env").write_text("GOOGLE_API_KEY=\nANTHROPIC_API_KEY=a-key\n")
 
     checks = run_checks(Settings(), reachable)
 
     assert not check_named(checks, "GOOGLE_API_KEY").ok
-    assert check_named(checks, "GROQ_API_KEY").ok
+    assert check_named(checks, "ANTHROPIC_API_KEY").ok
 
 
 def test_probe_raises_when_database_is_down() -> None:

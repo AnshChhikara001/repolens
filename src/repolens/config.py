@@ -4,8 +4,9 @@ from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_DATABASE_URL = "postgresql://repolens:repolens@localhost:5432/repolens"
-DEFAULT_CHAT_MODEL = "google_genai:gemini-3.5-flash"
+DEFAULT_CHAT_MODEL = "google:gemini-3.1-flash-lite"
 DEFAULT_CHAT_TIMEOUT = 120.0
+DEFAULT_RUNS_DIR = Path.home() / ".repolens" / "runs"
 
 
 class Settings(BaseSettings):
@@ -17,12 +18,11 @@ class Settings(BaseSettings):
     chat_model: str = DEFAULT_CHAT_MODEL
     chat_timeout: float = DEFAULT_CHAT_TIMEOUT
     local_models: Path | None = None
+    runs_dir: Path = DEFAULT_RUNS_DIR
     google_api_key: SecretStr | None = None
-    groq_api_key: SecretStr | None = None
-    github_token: SecretStr | None = None
-    langfuse_public_key: SecretStr | None = None
-    langfuse_secret_key: SecretStr | None = None
+    anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
+    github_token: SecretStr | None = None
 
 
 class ModelConfigError(Exception):
