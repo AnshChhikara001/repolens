@@ -4,7 +4,7 @@
 
 Ask questions about any public GitHub repository, such as *"How does auth work here?"*, *"Which modules are the riskiest to change?"* or *"Write an onboarding guide"*. You get back a report where **every claim cites a `file:line` or a commit/PR**.
 
-repolens is a multi-agent system built on LangGraph. A supervisor plans the work, specialist agents investigate in parallel, and the run stays inside a hard per-run cost budget and a set of guardrails.
+repolens pins the repository to a commit and indexes its Python and TypeScript code in Postgres, split into functions and classes with tree-sitter and searchable by keywords and by meaning. A model answers from the code it retrieves, and every citation is checked against the lines the model was actually shown before the answer is written. Each run logs its model calls, tokens and latency. It is plain Python with a small model layer for Gemini and Claude, no agent framework.
 
 ## Architecture (planned)
 
