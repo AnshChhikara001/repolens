@@ -42,14 +42,10 @@ def config(
     store: ChunkStore,
     llm: ScriptedLLM,
     runs_dir: Path,
-    reranker: KeywordReranker | None = None,
+    reranker: KeywordReranker | None = KeywordReranker(),  # noqa: B008
 ) -> RunConfig:
     return RunConfig(
-        llm=llm,
-        embedder=FakeEmbedder(),
-        store=store,
-        reranker=reranker or KeywordReranker(),
-        runs_dir=runs_dir,
+        llm=llm, embedder=FakeEmbedder(), store=store, reranker=reranker, runs_dir=runs_dir
     )
 
 
@@ -82,6 +78,19 @@ def test_code_navigator_reads_the_best_reranked_code_first(
     prompt = "\n".join(user for _, user in llm.prompts)
     hashing = prompt.index("return hashlib.sha256((SALT + password).encode()).hexdigest()")
     assert prompt.index("fetch(") < hashing
+
+
+def test_without_a_reranker_the_code_navigator_reads_the_code_in_search_order(
+    ingested: ChunkStore, runs_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(code_navigator, "TOP_K", 1)
+    llm = ScriptedLLM(CodeFindings(findings=[HASHED]), ReportDraft(answer="[1]"))
+
+    run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir, reranker=None))
+
+    [(_, prompt)] = llm.prompts[:1]
+    assert "def hash_password" in prompt
+    assert prompt.count("<code ") == 1
 
 
 def test_findings_without_citations_are_dropped(ingested: ChunkStore, runs_dir: Path) -> None:
@@ -243,3 +252,14 @@ def test_a_failed_run_logs_its_calls_and_the_error(ingested: ChunkStore, runs_di
     events = read_log(log)
     assert [event["event"] for event in events] == ["start", "call", "error"]
     assert "no scripted answer for ReportDraft" in events[2]["error"]
+
+
+def test_the_report_keeps_the_rejected_citations(ingested: ChunkStore, runs_dir: Path) -> None:
+    made_up = Citation(path="app/auth.py", start_line=90, end_line=95)
+    uncited = Finding(claim="Passwords are stored in plain text.", citations=[])
+    partly = Finding(claim=CHECKED.claim, citations=[LOGIN, made_up])
+    llm = ScriptedLLM(CodeFindings(findings=[partly, uncited]), ReportDraft(answer="[1]"))
+
+    report = run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir))
+
+    assert report.rejected == [made_up]

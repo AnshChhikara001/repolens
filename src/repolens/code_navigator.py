@@ -12,6 +12,7 @@ from repolens.snapshot import Snapshot
 from repolens.store import ChunkStore
 
 # Hybrid search finds the candidates, the cross-encoder keeps the best few for the prompt.
+# Without a reranker, the prompt gets the first few in search order.
 CANDIDATES = 24
 TOP_K = 6
 
@@ -37,7 +38,7 @@ def find_code(
     llm: LLM,
     embedder: Embedder,
     store: ChunkStore,
-    reranker: Reranker,
+    reranker: Reranker | None,
     lines_read: LinesRead,
 ) -> list[Finding]:
     """Retrieve the Chunks that best answer the question and turn them into cited Findings.
@@ -45,8 +46,11 @@ def find_code(
     The Chunks shown to the model are added to `lines_read`.
     """
     [embedding] = embedder.embed([question])
-    candidates = store.search(snapshot, question, embedding, CANDIDATES)
-    chunks = rerank(question, candidates, reranker, TOP_K)
+    if reranker is None:
+        chunks = store.search(snapshot, question, embedding, TOP_K)
+    else:
+        candidates = store.search(snapshot, question, embedding, CANDIDATES)
+        chunks = rerank(question, candidates, reranker, TOP_K)
     if not chunks:
         return []
     lines_read.add(chunks)

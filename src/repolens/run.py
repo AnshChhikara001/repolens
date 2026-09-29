@@ -30,12 +30,12 @@ NOT_FOUND = "Nothing in {snapshot} answers this question."
 
 @dataclass(frozen=True)
 class RunConfig:
-    """The model, stores and log directory a Run uses."""
+    """The model, stores and log directory a Run uses. No reranker keeps the search order."""
 
     llm: LLM
     embedder: Embedder
     store: ChunkStore
-    reranker: Reranker
+    reranker: Reranker | None
     runs_dir: Path
 
 
@@ -51,7 +51,7 @@ def run(question: str, snapshot: Snapshot, config: RunConfig) -> Report:
         findings = find_code(
             question, snapshot, llm, config.embedder, config.store, config.reranker, lines_read
         )
-        findings = verify(findings, lines_read)
+        findings, rejected = verify(findings, lines_read)
         if findings:
             answer = write_answer(question, findings, llm)
         else:
@@ -61,7 +61,7 @@ def run(question: str, snapshot: Snapshot, config: RunConfig) -> Report:
         raise
     duration_s = time.perf_counter() - started
     log.write("end", findings=len(findings), answer=answer, duration_s=duration_s)
-    return Report(run_id, question, snapshot, answer, findings, llm.calls, duration_s)
+    return Report(run_id, question, snapshot, answer, findings, rejected, llm.calls, duration_s)
 
 
 class _RecordingLLM:
