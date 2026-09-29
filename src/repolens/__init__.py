@@ -1,4 +1,4 @@
-"""repolens: cited, budgeted multi-agent Q&A over GitHub repositories."""
+"""repolens: code Q&A over GitHub repositories with verified citations."""
 
 from importlib.metadata import version
 

@@ -1,8 +1,9 @@
 """A Run: one question answered against one Snapshot.
 
-The Code Navigator finds cited Findings, the citation verifier drops those the Snapshot
-doesn't back (ADR-0007), and the Report Writer turns the rest into a Report. Every model call
-is counted in the Report and written to the run log, which also records why a failed Run failed.
+The Code Navigator finds cited Findings, the citation verifier drops those that cite lines the
+model wasn't shown (ADR-0007), and the Report Writer turns the rest into a Report. Every model
+call is counted in the Report and written to the run log, which also records why a failed Run
+failed.
 """
 
 import time
@@ -15,6 +16,7 @@ from pydantic import BaseModel
 from repolens.citations import verify
 from repolens.code_navigator import find_code
 from repolens.embedding import Embedder
+from repolens.lines_read import LinesRead
 from repolens.llm import LLM, ModelCall, Reply
 from repolens.report import Report
 from repolens.report_writer import write_answer
@@ -44,11 +46,12 @@ def run(question: str, snapshot: Snapshot, config: RunConfig) -> Report:
     log = RunLog(config.runs_dir / f"{run_id}.jsonl")
     log.write("start", run_id=run_id, snapshot=snapshot, question=question, model=config.llm.name)
     llm = _RecordingLLM(config.llm, log)
+    lines_read = LinesRead()
     try:
         findings = find_code(
-            question, snapshot, llm, config.embedder, config.store, config.reranker
+            question, snapshot, llm, config.embedder, config.store, config.reranker, lines_read
         )
-        findings = verify(findings, snapshot, config.store)
+        findings = verify(findings, lines_read)
         if findings:
             answer = write_answer(question, findings, llm)
         else:

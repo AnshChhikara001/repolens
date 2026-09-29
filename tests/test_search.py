@@ -19,7 +19,9 @@ ASSETS = Chunk("app/build/steps.py", 1, 2, "compile_assets", "pass")
 
 
 def save(store: ChunkStore, snapshot: Snapshot, chunks: dict[Chunk, list[float]]) -> None:
-    store.save(snapshot, len({c.path for c in chunks}), list(chunks), list(chunks.values()), "m")
+    store.save(
+        snapshot, len({c.path for c in chunks}), list(chunks), list(chunks.values()), "m", "v"
+    )
 
 
 def test_search_fuses_keyword_and_semantic_matches(store: ChunkStore) -> None:

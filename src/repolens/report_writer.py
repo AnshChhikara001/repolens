@@ -1,4 +1,4 @@
-"""The Report Writer Specialist: composes the answer from Findings only."""
+"""The Report Writer: composes the answer from Findings only."""
 
 from pydantic import BaseModel, Field
 

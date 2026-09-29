@@ -10,7 +10,12 @@ from repolens.chunking import Chunk
 from repolens.embedding import EMBEDDING_DIMENSIONS
 from repolens.snapshot import Snapshot
 
+SCHEMA_LOCK = 7_365_210  # any number no other code uses as an advisory lock
+
 SCHEMA = sql.SQL("""
+-- Two processes changing the schema at once can deadlock, so they take turns.
+SELECT pg_advisory_xact_lock({lock});
+
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS snapshots (
@@ -37,6 +42,9 @@ CREATE TABLE IF NOT EXISTS chunks (
 
 CREATE INDEX IF NOT EXISTS chunks_snapshot_id_idx ON chunks (snapshot_id);
 
+-- Snapshots stored before index versions get '', which matches no version.
+ALTER TABLE snapshots ADD COLUMN IF NOT EXISTS index_version text NOT NULL DEFAULT '';
+
 -- Full-text search over path segments, symbol parts and code. Dots and slashes split
 -- `app/auth.py` and `LoginService.login` into words; the parser already splits `_`.
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS search tsvector GENERATED ALWAYS AS (
@@ -45,7 +53,7 @@ ALTER TABLE chunks ADD COLUMN IF NOT EXISTS search tsvector GENERATED ALWAYS AS 
 ) STORED;
 
 CREATE INDEX IF NOT EXISTS chunks_search_idx ON chunks USING gin (search);
-""").format(dimensions=sql.Literal(EMBEDDING_DIMENSIONS))
+""").format(dimensions=sql.Literal(EMBEDDING_DIMENSIONS), lock=sql.Literal(SCHEMA_LOCK))
 
 # Reciprocal rank fusion of a keyword and a vector ranking, both limited to one Snapshot.
 # Keyword terms are OR-ed so a question matches chunks that contain any of its words.
@@ -76,10 +84,15 @@ LIMIT %(limit)s
 RRF_K = 60
 
 
+class SnapshotExistsError(Exception):
+    """The Snapshot was stored by someone else first."""
+
+
 @dataclass(frozen=True)
 class StoredSnapshot:
     file_count: int
     chunk_count: int
+    index_version: str
 
 
 class ChunkStore:
@@ -94,9 +107,15 @@ class ChunkStore:
     def find(self, snapshot: Snapshot) -> StoredSnapshot | None:
         with psycopg.connect(self.url) as conn:
             row = conn.execute(
-                "SELECT file_count, chunk_count FROM snapshots WHERE id = %s", (str(snapshot),)
+                "SELECT file_count, chunk_count, index_version FROM snapshots WHERE id = %s",
+                (str(snapshot),),
             ).fetchone()
-        return StoredSnapshot(row[0], row[1]) if row else None
+        return StoredSnapshot(*row) if row else None
+
+    def delete(self, snapshot: Snapshot) -> None:
+        """Remove a Snapshot and its Chunks."""
+        with psycopg.connect(self.url) as conn:
+            conn.execute("DELETE FROM snapshots WHERE id = %s", (str(snapshot),))
 
     def save(
         self,
@@ -105,22 +124,30 @@ class ChunkStore:
         chunks: Sequence[Chunk],
         embeddings: Sequence[Sequence[float]],
         model: str,
+        index_version: str,
     ) -> None:
-        """Store a Snapshot and all its Chunks in one transaction."""
+        """Store a Snapshot and all its Chunks in one transaction.
+
+        Raises SnapshotExistsError if the Snapshot is already stored.
+        """
         with psycopg.connect(self.url) as conn, conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO snapshots (id, owner, name, sha, embedding_model, file_count,"
-                " chunk_count) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (
-                    str(snapshot),
-                    snapshot.owner,
-                    snapshot.name,
-                    snapshot.sha,
-                    model,
-                    files,
-                    len(chunks),
-                ),
-            )
+            try:
+                cur.execute(
+                    "INSERT INTO snapshots (id, owner, name, sha, embedding_model, index_version,"
+                    " file_count, chunk_count) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    (
+                        str(snapshot),
+                        snapshot.owner,
+                        snapshot.name,
+                        snapshot.sha,
+                        model,
+                        index_version,
+                        files,
+                        len(chunks),
+                    ),
+                )
+            except psycopg.errors.UniqueViolation as exc:
+                raise SnapshotExistsError(str(snapshot)) from exc
             with cur.copy(
                 "COPY chunks (snapshot_id, path, start_line, end_line, symbol, content, embedding)"
                 " FROM STDIN"

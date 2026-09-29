@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from fakes import SHA, FakeEmbedder, FixtureSource, KeywordReranker, ScriptedLLM
 
+from repolens import code_navigator
 from repolens.code_navigator import CodeFindings
 from repolens.ingest import ingest
 from repolens.report import Citation, Finding
@@ -99,6 +100,7 @@ def test_findings_without_citations_are_dropped(ingested: ChunkStore, runs_dir: 
         Citation(path="app/auth.py", start_line=14, end_line=40),
         Citation(path="app/auth.py", start_line=0, end_line=3),
         Citation(path="app/auth.py", start_line=7, end_line=6),
+        Citation(path="app/auth.py", start_line=6, end_line=9),  # 8-9 are in no Chunk
         Citation(path="app/auth.py", start_line=6, end_line=7, symbol="LoginService.logout"),
         Citation(path="app/auth.py", start_line=6, end_line=7, symbol="LoginService"),
         Citation(path="app/auth.py", start_line=14, end_line=15, symbol="log"),
@@ -115,6 +117,21 @@ def test_a_made_up_citation_is_dropped(
     report = run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir))
 
     assert report.findings == [CHECKED]
+
+
+def test_a_citation_to_lines_the_model_was_not_shown_is_dropped(
+    ingested: ChunkStore, runs_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(code_navigator, "TOP_K", 1)
+    unseen = Finding(claim=CHECKED.claim, citations=[LOGIN])
+    llm = ScriptedLLM(CodeFindings(findings=[HASHED, unseen]), ReportDraft(answer="Hashed [1]."))
+
+    # Only `hash_password` is shown, so the real lines of `LoginService.login` can't be cited.
+    reranker = KeywordReranker("def hash_password")
+    report = run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir, reranker))
+
+    assert "def login" not in llm.prompts[0][1]
+    assert report.findings == [HASHED]
 
 
 def test_only_the_valid_citations_of_a_finding_are_kept(

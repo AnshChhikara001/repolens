@@ -1,9 +1,10 @@
-"""The Code Navigator Specialist: finds the code that answers a question and cites it."""
+"""The Code Navigator: finds the code that answers a question and cites it."""
 
 from pydantic import BaseModel
 
 from repolens.chunking import Chunk
 from repolens.embedding import Embedder
+from repolens.lines_read import LinesRead
 from repolens.llm import LLM
 from repolens.report import Finding
 from repolens.rerank import Reranker, rerank
@@ -37,13 +38,18 @@ def find_code(
     embedder: Embedder,
     store: ChunkStore,
     reranker: Reranker,
+    lines_read: LinesRead,
 ) -> list[Finding]:
-    """Retrieve the Chunks that best answer the question and turn them into cited Findings."""
+    """Retrieve the Chunks that best answer the question and turn them into cited Findings.
+
+    The Chunks shown to the model are added to `lines_read`.
+    """
     [embedding] = embedder.embed([question])
     candidates = store.search(snapshot, question, embedding, CANDIDATES)
     chunks = rerank(question, candidates, reranker, TOP_K)
     if not chunks:
         return []
+    lines_read.add(chunks)
     excerpts = "\n\n".join(_excerpt(chunk) for chunk in chunks)
     user = f"Question: {question}\n\n<excerpts>\n{excerpts}\n</excerpts>"
     return llm.structured(SYSTEM_PROMPT, user, CodeFindings).value.findings
