@@ -1,9 +1,0 @@
-# USD per million tokens at the paid tier, reviewed by hand (ADR-0004).
-# `free_tier: true` means we call the model on a free tier, so its cost is a Shadow cost.
-# Keys are `provider:model`, the same form as CHAT_MODEL.
-#
-# Gemini: https://ai.google.dev/gemini-api/docs/pricing, checked 2026-09-27.
-models:
-  google_genai:gemini-3.5-flash: {input: 1.50, output: 9.00, free_tier: true}
-  google_genai:gemini-3.5-flash-lite: {input: 0.30, output: 2.50, free_tier: true}
-  google_genai:gemini-3.1-flash-lite: {input: 0.25, output: 1.50, free_tier: true}

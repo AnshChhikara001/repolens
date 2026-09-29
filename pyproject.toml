@@ -7,16 +7,14 @@ license = "MIT"
 authors = [{ name = "Ansh Chhikara" }]
 requires-python = ">=3.12"
 dependencies = [
+    "anthropic>=1.9.0",
     "fastembed>=0.8.1",
+    "google-genai>=2.25.0",
     "httpx>=0.28.1",
     "httpx2>=2.13.1",
-    "langchain>=1.4.2",
-    "langchain-google-genai>=4.4.0",
-    "langgraph>=1.2.12",
     "openai>=3.19.2",
     "psycopg[binary]>=3.2",
     "pydantic-settings>=2.4",
-    "pyyaml>=6.0.3",
     "tree-sitter>=0.25,<0.26",  # 0.26.0 over-releases Point.row ints and segfaults
     "tree-sitter-python>=0.25.0",
     "tree-sitter-typescript>=0.23.2",
@@ -36,7 +34,6 @@ dev = [
     "pyright>=1.1.380",
     "pytest>=8.3",
     "ruff>=0.6",
-    "types-pyyaml>=6.0.12.20260906",
 ]
 
 [tool.ruff]
@@ -53,7 +50,7 @@ include = ["src", "tests"]
 exclude = ["tests/fixtures"]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
-reportMissingTypeStubs = false  # langgraph ships inline types without a py.typed marker
+reportMissingTypeStubs = false  # fastembed ships inline types without a py.typed marker
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

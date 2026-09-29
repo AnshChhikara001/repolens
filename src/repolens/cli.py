@@ -1,14 +1,10 @@
-import logging
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Annotated
 
-import httpx
-import httpx2
 import openai
 import psycopg
 import typer
-from langchain_core.exceptions import LangChainException
 
 from repolens import __version__
 from repolens.config import ModelConfigError, Settings
@@ -16,8 +12,8 @@ from repolens.doctor import healthy, probe_database, run_checks
 from repolens.embedding import OpenAIEmbedder
 from repolens.github import GitHubSource
 from repolens.ingest import IngestError, IngestResult, ingest
-from repolens.ledger import Ledger
-from repolens.models import chat_model, price_table
+from repolens.llm import LLMError
+from repolens.models import build_llm
 from repolens.rerank import CrossEncoderReranker
 from repolens.run import RunConfig, run
 from repolens.snapshot import RepoRef
@@ -40,8 +36,6 @@ RepoArgument = Annotated[
 @app.callback()
 def main() -> None:
     """repolens command-line interface."""
-    # google-genai warns about how LangChain calls it on the first request. It isn't actionable.
-    logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 
 
 @app.command()
@@ -83,15 +77,12 @@ def ask(
     settings = Settings()
     embedder = _embedder(settings)
     with _errors_as_messages():
-        model = chat_model(settings)
+        llm = build_llm(settings)
         store = ChunkStore(settings.database_url)
         result = _ingest(repo_ref, settings, embedder, store)
         if result.created:
             typer.echo(f"Ingested {_ingest_summary(result)}", err=True)
-        ledger = Ledger(settings.database_url)
-        ledger.setup()
-        prices = price_table(settings)
-        config = RunConfig(model, embedder, store, CrossEncoderReranker(), prices, ledger)
+        config = RunConfig(llm, embedder, store, CrossEncoderReranker(), settings.runs_dir)
         typer.echo(f"Answering with {settings.chat_model}…", err=True)
         with _timeout_as_message(settings.chat_timeout):
             report = run(question, result.snapshot, config)
@@ -125,7 +116,7 @@ def _errors_as_messages() -> Generator[None]:
     """Turn expected failures into a one-line error and exit code 1."""
     try:
         yield
-    except (IngestError, ModelConfigError, openai.OpenAIError, LangChainException) as exc:
+    except (IngestError, ModelConfigError, LLMError, openai.OpenAIError) as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
     except psycopg.OperationalError as exc:
@@ -137,13 +128,13 @@ def _errors_as_messages() -> Generator[None]:
 def _timeout_as_message(timeout: float) -> Generator[None]:
     """Report a chat model request that took longer than CHAT_TIMEOUT.
 
-    OpenAI's SDK raises its own timeout error, which `_errors_as_messages` prints.
+    Embedding requests raise OpenAI's own timeout error, which `_errors_as_messages` prints.
     """
     try:
         yield
-    except (TimeoutError, httpx.TimeoutException, httpx2.TimeoutException) as exc:
+    except TimeoutError as exc:
         typer.echo(
-            f"error: the chat model didn't answer within {timeout:g}s,"
+            f"error: a chat model request took longer than {timeout:g}s,"
             " raise CHAT_TIMEOUT to wait longer",
             err=True,
         )

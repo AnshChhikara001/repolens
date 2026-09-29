@@ -1,13 +1,10 @@
 """The Code Navigator Specialist: finds the code that answers a question and cites it."""
 
-from typing import cast
-
-from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel
 
 from repolens.chunking import Chunk
 from repolens.embedding import Embedder
+from repolens.llm import LLM
 from repolens.report import Finding
 from repolens.rerank import Reranker, rerank
 from repolens.snapshot import Snapshot
@@ -36,7 +33,7 @@ class CodeFindings(BaseModel):
 def find_code(
     question: str,
     snapshot: Snapshot,
-    model: BaseChatModel,
+    llm: LLM,
     embedder: Embedder,
     store: ChunkStore,
     reranker: Reranker,
@@ -48,13 +45,8 @@ def find_code(
     if not chunks:
         return []
     excerpts = "\n\n".join(_excerpt(chunk) for chunk in chunks)
-    result = model.with_structured_output(CodeFindings).invoke(
-        [
-            SystemMessage(SYSTEM_PROMPT),
-            HumanMessage(f"Question: {question}\n\n<excerpts>\n{excerpts}\n</excerpts>"),
-        ]
-    )
-    return cast(CodeFindings, result).findings
+    user = f"Question: {question}\n\n<excerpts>\n{excerpts}\n</excerpts>"
+    return llm.structured(SYSTEM_PROMPT, user, CodeFindings).value.findings
 
 
 def _excerpt(chunk: Chunk) -> str:

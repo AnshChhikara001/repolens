@@ -1,16 +1,13 @@
+import re
 from pathlib import Path
 
-import httpx
-import httpx2
 import pytest
 from conftest import TEST_DATABASE_URL
 from fakes import (
-    CALL_COST,
-    FAKE_PRICES,
     SHA,
+    FailingLLM,
     KeywordReranker,
-    ScriptedChatModel,
-    TimedOutChatModel,
+    ScriptedLLM,
     fake_embedder,
     fixture_source,
 )
@@ -19,8 +16,7 @@ from typer.testing import CliRunner
 from repolens import cli
 from repolens.code_navigator import CodeFindings
 from repolens.config import Settings
-from repolens.costs import PriceTable
-from repolens.ledger import Ledger
+from repolens.llm import LLMError
 from repolens.report import Citation, Finding
 from repolens.report_writer import ReportDraft
 from repolens.store import ChunkStore
@@ -59,30 +55,31 @@ def offline(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def fakes(monkeypatch: pytest.MonkeyPatch, offline: None) -> ScriptedChatModel:
-    model = ScriptedChatModel(script=[])
+def fakes(monkeypatch: pytest.MonkeyPatch, offline: None) -> ScriptedLLM:
+    model = ScriptedLLM()
 
-    def fake_prices(settings: Settings) -> PriceTable:
-        return FAKE_PRICES
-
-    monkeypatch.setattr(cli, "price_table", fake_prices)
-
-    def scripted_model(settings: Settings) -> ScriptedChatModel:
+    def scripted_model(settings: Settings) -> ScriptedLLM:
         return model
 
-    monkeypatch.setattr(cli, "chat_model", scripted_model)
+    monkeypatch.setattr(cli, "build_llm", scripted_model)
     return model
 
 
-def test_ask_prints_a_report_with_citations_cost_and_the_snapshot(
-    store: ChunkStore, ledger: Ledger, fakes: ScriptedChatModel
+USAGE = r"2 calls · 2,000 in / 200 out tokens · \d+\.\ds\n"
+
+
+def test_ask_prints_a_report_with_citations_usage_and_the_snapshot(
+    store: ChunkStore, fakes: ScriptedLLM
 ) -> None:
-    fakes.script = [FINDINGS, ReportDraft(answer="Passwords are salted SHA-256 hashes [1][2].")]
+    fakes.script.extend(
+        [FINDINGS, ReportDraft(answer="Passwords are salted SHA-256 hashes [1][2].")]
+    )
 
     result = runner.invoke(cli.app, ["ask", "acme/shop@main", "How are passwords stored?"])
 
     assert result.exit_code == 0, result.output
-    assert result.stdout == (
+    report, usage = result.stdout.rsplit("\n\n", 1)
+    assert report == (
         f"Snapshot: acme/shop@{SHA}\n"
         "Question: How are passwords stored?\n"
         "\n"
@@ -92,24 +89,29 @@ def test_ask_prints_a_report_with_citations_cost_and_the_snapshot(
         "    app/auth.py:6-7\n"
         "[2] Login compares stored hashes.\n"
         "    app/auth.py:14-15\n"
-        "    app/auth.py:6-7\n"
-        "\n"
-        "Shadow cost: $0.0024 (scripted, 2 calls)\n"
+        "    app/auth.py:6-7"
     )
-    assert ledger.total_usd() == pytest.approx(2 * CALL_COST)
+    assert re.fullmatch(USAGE, usage)
     assert "Ingested" in result.stderr
 
 
-def test_ask_reuses_an_ingested_snapshot(
-    store: ChunkStore, ledger: Ledger, fakes: ScriptedChatModel
-) -> None:
-    fakes.script = [CodeFindings(findings=[]), CodeFindings(findings=[])]
+def test_ask_writes_a_run_log(store: ChunkStore, fakes: ScriptedLLM, tmp_path: Path) -> None:
+    fakes.script.extend([CodeFindings(findings=[])])
+
+    result = runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
+
+    assert result.exit_code == 0, result.output
+    assert len(list((tmp_path / "runs").glob("*.jsonl"))) == 1
+
+
+def test_ask_reuses_an_ingested_snapshot(store: ChunkStore, fakes: ScriptedLLM) -> None:
+    fakes.script.extend([CodeFindings(findings=[]), CodeFindings(findings=[])])
     runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
 
     result = runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
 
     assert result.exit_code == 0, result.output
-    assert result.stderr == "Answering with google_genai:gemini-3.5-flash…\n"
+    assert result.stderr == "Answering with google:gemini-3.1-flash-lite…\n"
     assert f"Nothing in acme/shop@{SHA} answers this question." in result.stdout
 
 
@@ -129,22 +131,19 @@ def test_ask_needs_an_openai_key() -> None:
     assert "OPENAI_API_KEY" in result.output
 
 
-# A local models file whose model finds nothing, in one priced call.
+# A local models file whose model finds nothing, in one call.
 LOCAL_MODELS = """
-from fakes import ScriptedChatModel
+from fakes import ScriptedLLM
 from repolens.code_navigator import CodeFindings
 
-PRICES = {"fake:scripted": {"input": 1.0, "output": 2.0, "free_tier": True}}
 
-
-def chat_model(name, timeout):
-    return ScriptedChatModel(script=[CodeFindings(findings=[])])
+def llm(name, timeout):
+    return ScriptedLLM(CodeFindings(findings=[]))
 """
 
 
 def test_ask_runs_a_model_from_the_local_models_file(
     store: ChunkStore,
-    ledger: Ledger,
     offline: None,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -157,36 +156,41 @@ def test_ask_runs_a_model_from_the_local_models_file(
     result = runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
 
     assert result.exit_code == 0, result.output
-    assert result.stdout.endswith("\n\nShadow cost: $0.0012 (scripted, 1 call)\n")
+    assert re.search(r"\n\n1 call · 1,000 in / 100 out tokens · \d+\.\ds\n$", result.stdout)
     assert "Answering with fake:scripted…" in result.stderr
-    assert ledger.total_usd() == pytest.approx(CALL_COST)
 
 
 @pytest.mark.parametrize(
-    "error",
+    ("error", "message"),
     [
-        TimeoutError(),
-        httpx.ReadTimeout("timed out"),
-        httpx2.ReadTimeout("timed out"),
+        (
+            TimeoutError(),
+            "error: a chat model request took longer than 30s, raise CHAT_TIMEOUT to wait longer\n",
+        ),
+        (
+            LLMError("google:gemini-x: 503 UNAVAILABLE, The model is overloaded."),
+            "error: google:gemini-x: 503 UNAVAILABLE, The model is overloaded.\n",
+        ),
     ],
+    ids=["timeout", "provider error"],
 )
-def test_a_model_that_times_out_fails_the_run_with_a_clear_error(
+def test_a_failing_model_fails_the_run_with_one_clear_line(
     store: ChunkStore,
-    fakes: ScriptedChatModel,
+    fakes: ScriptedLLM,
     monkeypatch: pytest.MonkeyPatch,
     error: BaseException,
+    message: str,
 ) -> None:
     monkeypatch.setenv("CHAT_TIMEOUT", "30")
 
-    def timed_out_model(settings: Settings) -> ScriptedChatModel:
-        return TimedOutChatModel(script=[], error=error)
+    def failing_model(settings: Settings) -> FailingLLM:
+        return FailingLLM(error)
 
-    monkeypatch.setattr(cli, "chat_model", timed_out_model)
+    monkeypatch.setattr(cli, "build_llm", failing_model)
 
     result = runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
 
     assert result.exit_code == 1
     assert result.stdout == ""
-    assert result.stderr.endswith(
-        "error: the chat model didn't answer within 30s, raise CHAT_TIMEOUT to wait longer\n"
-    )
+    assert result.stderr.endswith(message)
+    assert result.stderr.count("error:") == 1

@@ -1,12 +1,11 @@
 """Findings, Citations and the Report a Run returns (ADR-0007)."""
 
-from collections import Counter
 from dataclasses import dataclass
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from repolens.costs import ModelCall
+from repolens.llm import ModelCall
 from repolens.snapshot import Snapshot
 
 
@@ -45,10 +44,7 @@ class Report:
     answer: str
     findings: list[Finding]
     calls: list[ModelCall]
-
-    @property
-    def cost_usd(self) -> float:
-        return sum(call.cost_usd for call in self.calls)
+    duration_s: float
 
     def __str__(self) -> str:
         lines = [f"Snapshot: {self.snapshot}", f"Question: {self.question}", "", self.answer]
@@ -57,17 +53,15 @@ class Report:
         for number, finding in enumerate(self.findings, 1):
             lines.append(f"[{number}] {finding.claim}")
             lines.extend(f"    {citation}" for citation in finding.citations)
-        lines.extend(["", self._cost()])
+        lines.extend(["", self._usage()])
         return "\n".join(lines)
 
-    def _cost(self) -> str:
-        """E.g. `Shadow cost: $0.0204 (gemini-3.5-flash, 2 calls)`, one entry per model."""
-        shadow = self.calls and all(call.shadow for call in self.calls)
-        label = "Shadow cost" if shadow else "Cost"
-        counts = Counter(call.model.partition(":")[2] for call in self.calls)
-        models = "; ".join(f"{model}, {_calls(count)}" for model, count in counts.items())
-        return f"{label}: ${self.cost_usd:.4f} ({models or 'no model calls'})"
-
-
-def _calls(count: int) -> str:
-    return f"{count} call{'' if count == 1 else 's'}"
+    def _usage(self) -> str:
+        """E.g. `2 calls · 3,120 in / 410 out tokens · 21.6s`."""
+        if not self.calls:
+            return f"No model calls · {self.duration_s:.1f}s"
+        calls = f"{len(self.calls)} call{'' if len(self.calls) == 1 else 's'}"
+        input_tokens = sum(call.input_tokens for call in self.calls)
+        output_tokens = sum(call.output_tokens for call in self.calls)
+        tokens = f"{input_tokens:,} in / {output_tokens:,} out tokens"
+        return f"{calls} · {tokens} · {self.duration_s:.1f}s"
