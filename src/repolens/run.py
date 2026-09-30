@@ -2,8 +2,8 @@
 
 The Code Navigator finds cited Findings, the citation verifier drops those that cite lines the
 model wasn't shown (ADR-0007), and the Report Writer turns the rest into a Report. Every model
-call is counted in the Report and written to the run log, which also records why a failed Run
-failed.
+call is counted in the Report and written to the run log, which also records the rejected
+Citations and why a failed Run failed.
 """
 
 import time
@@ -60,7 +60,13 @@ def run(question: str, snapshot: Snapshot, config: RunConfig) -> Report:
         log.write("error", error=repr(exc))
         raise
     duration_s = time.perf_counter() - started
-    log.write("end", findings=len(findings), answer=answer, duration_s=duration_s)
+    log.write(
+        "end",
+        findings=len(findings),
+        rejected=[f"{c} {c.symbol}" if c.symbol else str(c) for c in rejected],
+        answer=answer,
+        duration_s=duration_s,
+    )
     return Report(run_id, question, snapshot, answer, findings, rejected, llm.calls, duration_s)
 
 

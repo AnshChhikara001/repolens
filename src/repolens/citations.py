@@ -50,5 +50,11 @@ def _valid(citation: Citation, lines_read: LinesRead) -> bool:
 
 
 def _names(excerpt: Chunk, name: str) -> bool:
+    """The excerpt is named `name` or defines it. A part of the excerpt's name matches with
+    or without the `#` of a TypeScript private name, like `#calculateDelay`."""
+    bare = name.removeprefix("#")
     definition = _DEFINITION.format(name=re.escape(name))
-    return name in excerpt.symbol.split(".") or re.search(definition, excerpt.text) is not None
+    return (
+        any(part.removeprefix("#") == bare for part in excerpt.symbol.split("."))
+        or re.search(definition, excerpt.text) is not None
+    )

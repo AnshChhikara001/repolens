@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 from fakes import SHA, FakeEmbedder, FixtureSource, KeywordReranker, ScriptedLLM
 
-from repolens import code_navigator
+from repolens import chunking, code_navigator
 from repolens.code_navigator import CodeFindings
 from repolens.ingest import ingest
 from repolens.report import Citation, Finding
@@ -172,6 +172,56 @@ def test_a_citation_may_name_the_class_or_method_it_points_into(
     assert report.findings == [finding]
 
 
+CLIENT_TS = """\
+export class Client {
+  request(url: string): Promise<Response> {
+    const { href } = new URL(url);
+    return this.#send(href);
+  }
+
+  #send(url: string): Promise<Response> {
+    return fetch(url);
+  }
+}
+"""
+
+
+@pytest.mark.parametrize(
+    ("lines", "symbol", "kept"),
+    [
+        ((7, 9), "Client.#send", True),
+        ((7, 9), "Client.send", True),
+        ((7, 9), "send", True),
+        ((2, 5), "Client.#request", True),
+        ((2, 5), "Client.#", False),
+    ],
+)
+def test_a_typescript_private_name_may_be_cited_with_or_without_its_hash(
+    store: ChunkStore,
+    runs_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    lines: tuple[int, int],
+    symbol: str,
+    kept: bool,
+) -> None:
+    # A long class is split into one Chunk per method, named like `Client.#send`.
+    monkeypatch.setattr(chunking, "MAX_CHUNK_LINES", 5)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "client.ts").write_text(CLIENT_TS)
+    ingest(RepoRef("acme", "client"), FixtureSource(repo), FakeEmbedder(), store)
+    citation = Citation(path="client.ts", start_line=lines[0], end_line=lines[1], symbol=symbol)
+    finding = Finding(claim="Requests are sent with fetch.", citations=[citation])
+    llm = ScriptedLLM(CodeFindings(findings=[finding]), ReportDraft(answer="Sent [1]."))
+
+    report = run(
+        "How are requests sent?", Snapshot("acme", "client", SHA), config(store, llm, runs_dir)
+    )
+
+    assert report.findings == ([finding] if kept else [])
+
+
 def test_no_findings_means_a_not_found_report(ingested: ChunkStore, runs_dir: Path) -> None:
     llm = ScriptedLLM(CodeFindings(findings=[]))
 
@@ -219,7 +269,11 @@ def test_the_report_ends_with_the_run_usage(ingested: ChunkStore, runs_dir: Path
 
 
 def test_each_run_writes_a_log_of_its_model_calls(ingested: ChunkStore, runs_dir: Path) -> None:
-    llm = ScriptedLLM(CodeFindings(findings=[HASHED]), ReportDraft(answer="Hashed [1]."))
+    made_up = Citation(path="app/auth.py", start_line=90, end_line=95, symbol="LoginService")
+    llm = ScriptedLLM(
+        CodeFindings(findings=[HASHED, Finding(claim="Made up.", citations=[made_up])]),
+        ReportDraft(answer="Hashed [1]."),
+    )
 
     report = run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir))
 
@@ -242,6 +296,7 @@ def test_each_run_writes_a_log_of_its_model_calls(ingested: ChunkStore, runs_dir
     }
     assert writer["schema"] == "ReportDraft"
     assert end["findings"] == 1
+    assert end["rejected"] == ["app/auth.py:90-95 LoginService"]
     assert end["answer"] == "Hashed [1]."
     assert end["duration_s"] == report.duration_s
 
