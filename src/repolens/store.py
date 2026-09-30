@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import psycopg
 from psycopg import sql
 
-from repolens.chunking import DEFINITION, Chunk
+from repolens.chunking import DEFINITION_PATTERN, Chunk
 from repolens.embedding import EMBEDDING_DIMENSIONS
 from repolens.snapshot import Snapshot
 
@@ -86,7 +86,7 @@ RRF_K = 60
 
 # Chunks named after a symbol come first, then Chunks that define it inside, like a method
 # in a class that wasn't split.
-DEFINITIONS = """
+FIND_DEFINITIONS = """
 SELECT path, start_line, end_line, symbol, content
 FROM chunks
 WHERE snapshot_id = %(snapshot)s AND (symbol ~ %(symbol)s OR content ~ %(definition)s)
@@ -212,11 +212,11 @@ class ChunkStore:
         params = {
             "snapshot": str(snapshot),
             "symbol": r"(^|\.)#?" + r"\.#?".join(parts) + "$",
-            "definition": DEFINITION.format(name="#?" + parts[-1]),
+            "definition": DEFINITION_PATTERN.format(name="#?" + parts[-1]),
             "limit": limit,
         }
         with psycopg.connect(self.url) as conn:
-            rows = conn.execute(DEFINITIONS, params).fetchall()
+            rows = conn.execute(FIND_DEFINITIONS, params).fetchall()
         return [Chunk(*row) for row in rows]
 
 

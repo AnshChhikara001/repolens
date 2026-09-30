@@ -13,7 +13,7 @@ CHUNKER_VERSION = 2
 
 MODULE_SYMBOL = "<module>"
 # A keyword that defines `name` in Python or TypeScript, as a regex that also runs in Postgres.
-DEFINITION = r"(?:def|class|function|interface|type|enum|const|let|var)\s+{name}(?!\w)"
+DEFINITION_PATTERN = r"(?:def|class|function|interface|type|enum|const|let|var)\s+{name}(?!\w)"
 MAX_CHUNK_LINES = 150
 # Module-level code shorter than this joins the definition next to it.
 SMALL_MODULE_LINES = 10
