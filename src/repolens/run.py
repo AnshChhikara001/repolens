@@ -63,7 +63,7 @@ def run(question: str, snapshot: Snapshot, config: RunConfig) -> Report:
     log.write(
         "end",
         findings=len(findings),
-        rejected=[f"{c} {c.symbol or ''}".rstrip() for c in rejected],
+        rejected=[f"{c} {c.symbol}" if c.symbol else str(c) for c in rejected],
         answer=answer,
         duration_s=duration_s,
     )
