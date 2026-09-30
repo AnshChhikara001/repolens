@@ -61,10 +61,10 @@ Design decisions are recorded in [`docs/adr/`](docs/adr/) and the vocabulary in 
 | Claude Sonnet 5 | one-shot | 52% | 38% | 99–100% | 8,184 | 16.8s | $0.0265 |
 | Claude Sonnet 5 | agent | **85–92%** | **88–93%** | 99% | 29,050 | 27.7s | $0.0707 |
 
-Tokens, time and cost are means per question; cost is estimated at list prices.
+Recall and validity are over the questions that got an answer; 5 of 80 Gemini Runs failed with provider overload errors (503) and none of Sonnet 5's. Tokens, time and cost are means per question; cost is estimated at list prices.
 
 - **Searching and reading beats answering from one search.** On Claude Sonnet 5 the agent finds 85–92% of the expected files, against 52% one-shot, for about 3.5x the tokens.
-- **Gemini 3.1 Flash-Lite mostly answers at once.** It stopped after the first step in 25 of 38 Runs, so the agent gains it much less.
+- **Gemini 3.1 Flash-Lite mostly answers at once.** It stopped after the first step in 25 of 38 Runs, so it gains much less from the agent.
 - **Citations stay valid.** The verifier kept 96–100% of Citations in every setup.
 - **Retrieval still misses some code.** On two ky questions, long test files and type declarations crowd the source out of the search results.
 
@@ -110,7 +110,7 @@ uv run pyright              # strict mode
 - [x] **M0** Project scaffold, CI, local Postgres
 - [x] **M1** End-to-end slice: ingest a repo snapshot, code Q&A with citations (CLI)
 - [ ] **M2** Agentic Q&A, measured: one agent with search, read and define Tools, verified citations, a pinned eval
-- [ ] **M3** *(optional)* Git history Tools, guardrails (prompt-injection scan, secret redaction), a hosted demo
+- [ ] **M3** *(optional)* Git history Tools, guardrails (prompt-injection scan, secret redaction), a hosted demo with a web UI
 
 ## License
 

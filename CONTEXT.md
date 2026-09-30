@@ -43,7 +43,7 @@ _Avoid_: document, passage
 What a Snapshot's stored Chunks depend on: the chunker version and the embedding model. A Snapshot stored under another index version is ingested again.
 
 **Excerpt**:
-Lines of one Chunk that a Tool shows the model, each line starting with its number. A search or definition lookup may show only the first lines of a long Chunk.
+Lines of one Chunk that a Tool shows the model.
 _Avoid_: snippet, hit
 
 **Lines read**:
@@ -69,3 +69,6 @@ _Avoid_: test case, benchmark item
 
 **File recall**:
 The share of an Eval question's expected files that the Report cites. Symbol recall is the same for expected symbols.
+
+**Citation validity**:
+The share of the Citations a model returns that the verifier keeps.

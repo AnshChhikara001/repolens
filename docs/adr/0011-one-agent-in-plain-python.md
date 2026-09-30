@@ -16,5 +16,5 @@ The agent took Claude Sonnet 5 from 52% to 85–92% expected-file recall, and Ge
 
 ## Consequences
 
-- Supersedes ADR-0001 and ADR-0004. ADR-0003 holds except for `init_chat_model`, Groq and prices in `LOCAL_MODELS`. ADR-0005 holds only for the reranker and the untrusted-data wrapping. ADR-0006 and ADR-0009 are out of scope; guardrails, git history and a hosted demo may come back in M3.
+- Supersedes ADR-0001, ADR-0004, ADR-0006 (no write actions) and ADR-0009 (no hosted demo). ADR-0003 holds except for `init_chat_model`, Groq and prices in `LOCAL_MODELS`. ADR-0005 holds only for the reranker and the untrusted-data wrapping. Git history Tools, guardrails, a hosted demo and a web UI may come in M3.
 - Chat model timeouts, retries and the Gemini rate-limit wait (ADR-0003) now live in our adapters instead of LangChain's clients.

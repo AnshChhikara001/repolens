@@ -4,7 +4,7 @@ Chunks and questions are embedded with OpenAI `text-embedding-3-small` (1536 dim
 
 ## Considered Options
 
-- **bge-small on CPU (the original plan):** free, but slow to ingest with and memory we need for the reranker.
+- **bge-small on CPU (the original plan):** free, but slower to ingest with, and it uses memory the reranker needs.
 - **Gemini embeddings on the free tier:** free, but they would share the daily request quota the chat models already depend on.
 
 ## Consequences
