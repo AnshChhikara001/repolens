@@ -42,6 +42,10 @@ _Avoid_: document, passage
 **Index version**:
 What a Snapshot's stored Chunks depend on: the chunker version and the embedding model. A Snapshot stored under another index version is ingested again.
 
+**Excerpt**:
+Lines of one Chunk that a Tool shows the model, each line starting with its number. A search or definition lookup may show only the first lines of a long Chunk.
+_Avoid_: snippet, hit
+
 **Lines read**:
 The lines of each file the model was shown during a Run, however they were fetched. Citations may point only at these lines.
 
@@ -56,3 +60,12 @@ _Avoid_: reference, source
 **Report**:
 The final answer to a Run, composed only from Findings with valid Citations.
 _Avoid_: response, summary
+
+### Evaluation
+
+**Eval question**:
+A question pinned to a Snapshot, with the files (and optionally the symbols) a good answer cites.
+_Avoid_: test case, benchmark item
+
+**File recall**:
+The share of an Eval question's expected files that the Report cites. Symbol recall is the same for expected symbols.
