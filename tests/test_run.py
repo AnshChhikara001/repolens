@@ -175,7 +175,8 @@ def test_a_citation_may_name_the_class_or_method_it_points_into(
 CLIENT_TS = """\
 export class Client {
   request(url: string): Promise<Response> {
-    return this.#send(url);
+    const { href } = new URL(url);
+    return this.#send(href);
   }
 
   #send(url: string): Promise<Response> {
@@ -186,12 +187,13 @@ export class Client {
 
 
 @pytest.mark.parametrize(
-    ("lines", "symbol"),
+    ("lines", "symbol", "kept"),
     [
-        ((6, 8), "Client.#send"),
-        ((6, 8), "Client.send"),
-        ((6, 8), "send"),
-        ((2, 4), "Client.#request"),
+        ((7, 9), "Client.#send", True),
+        ((7, 9), "Client.send", True),
+        ((7, 9), "send", True),
+        ((2, 5), "Client.#request", True),
+        ((2, 5), "Client.#", False),
     ],
 )
 def test_a_typescript_private_name_may_be_cited_with_or_without_its_hash(
@@ -201,6 +203,7 @@ def test_a_typescript_private_name_may_be_cited_with_or_without_its_hash(
     monkeypatch: pytest.MonkeyPatch,
     lines: tuple[int, int],
     symbol: str,
+    kept: bool,
 ) -> None:
     # A long class is split into one Chunk per method, named like `Client.#send`.
     monkeypatch.setattr(chunking, "MAX_CHUNK_LINES", 5)
@@ -216,7 +219,7 @@ def test_a_typescript_private_name_may_be_cited_with_or_without_its_hash(
         "How are requests sent?", Snapshot("acme", "client", SHA), config(store, llm, runs_dir)
     )
 
-    assert report.findings == [finding]
+    assert report.findings == ([finding] if kept else [])
 
 
 def test_no_findings_means_a_not_found_report(ingested: ChunkStore, runs_dir: Path) -> None:
