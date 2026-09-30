@@ -231,6 +231,36 @@ def test_a_search_shows_the_first_lines_of_every_hit(
     assert report.rejected == [HASHING]  # its lines 6-7 weren't shown
 
 
+def test_a_hit_found_again_shows_only_the_lines_not_shown_yet(
+    ingested: ChunkStore, runs_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(tools, "MAX_RESULT_LINES", 12)
+    llm = ScriptedLLM(search(QUESTION), answer(HASHED), ReportDraft(answer="Hashed [1]."))
+
+    report = run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir))
+
+    prompt = llm.prompts[1][1]
+    assert prompt.count("1 import hashlib") == 1
+    assert "6 def hash_password" in prompt
+    assert "Already shown above: web/src/App.tsx:1-1 App, app/build/steps.py:1-2" in prompt
+    assert report.findings == [HASHED]
+
+
+def test_near_the_run_limit_the_best_hits_are_shown_first(
+    ingested: ChunkStore, runs_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(tools, "MAX_RUN_LINES", 4)
+    llm = ScriptedLLM(answer(HASHED), ReportDraft(answer="Hashed [1]."))
+
+    run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir))
+
+    prompt = llm.prompts[0][1]
+    assert "4 \n" in prompt
+    assert prompt.count("<code ") == 1
+    assert "The Run has shown its limit of 4 lines." in prompt
+    assert "Not shown: app/auth.py:10-15 LoginService, web/src/App.tsx:1-1 App" in prompt
+
+
 def test_a_tool_result_shows_at_most_its_line_limit(
     ingested: ChunkStore, runs_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -62,7 +62,7 @@ class Tools:
             candidates = self._store.search(self._snapshot, query, embedding, CANDIDATES)
             chunks = rerank(query, candidates, self._reranker, TOP_K)
         return (
-            self._show(chunks, preview=True)
+            self._show(chunks, share=True)
             if chunks
             else ToolResult(f"No code matches {query!r}.", [])
         )
@@ -93,25 +93,28 @@ class Tools:
         name = name.strip().removesuffix("()")
         chunks = self._store.definitions(self._snapshot, name, MAX_DEFINITIONS)
         return (
-            self._show(chunks, preview=True)
+            self._show(chunks, share=True)
             if chunks
             else ToolResult(f"No definition of {name!r}.", [])
         )
 
-    def _show(self, chunks: Sequence[Chunk], preview: bool = False) -> ToolResult:
-        """Show the excerpts not seen yet, up to the line limits, and record them as read.
+    def _show(self, chunks: Sequence[Chunk], share: bool = False) -> ToolResult:
+        """Show the lines of the excerpts not seen yet, up to the line limits, and record them.
 
-        Excerpts fill the limit in order, like the lines of one file. As a `preview`, the hits
-        of a search share it instead, so each shows at least its first lines.
+        Excerpts fill the limit in order, like the lines of one file. The hits of a search or
+        a definition lookup `share` it instead, so each shows at least its first lines.
         """
         new: list[Chunk] = []
         seen: list[Chunk] = []
         for chunk in chunks:
-            covered = self._lines_read.covers(chunk.path, chunk.start_line, chunk.end_line)
-            (seen if covered else new).append(chunk)
+            start_line = self._lines_read.first_unread(chunk.path, chunk.start_line, chunk.end_line)
+            if start_line is None:
+                seen.append(chunk)
+            else:
+                new.append(_cut(chunk, start_line, chunk.end_line))
         budget = min(MAX_RESULT_LINES, MAX_RUN_LINES - self._lines_shown)
         sizes = [_length(chunk) for chunk in new]
-        limits = _share(sizes, budget) if preview else _fill(sizes, budget)
+        limits = _share(sizes, budget) if share else _fill(sizes, budget)
         self._lines_shown += sum(limits)
         shown: list[Chunk] = []
         parts: list[str] = []
@@ -129,8 +132,11 @@ class Tools:
         self._lines_read.add(shown)
         if seen:
             parts.append("Already shown above: " + ", ".join(label(c) for c in seen))
-        if 0 in limits:
+        dropped = [chunk for chunk, limit in zip(new, limits, strict=True) if limit == 0]
+        if dropped or self._lines_shown >= MAX_RUN_LINES:
             parts.append(_limit_note(self._lines_shown))
+        if dropped:
+            parts.append("Not shown: " + ", ".join(label(c) for c in dropped))
         return ToolResult("\n\n".join(parts), shown)
 
 
@@ -169,8 +175,11 @@ def _fill(sizes: list[int], budget: int) -> list[int]:
 def _share(sizes: list[int], budget: int) -> list[int]:
     """How many lines each excerpt shows when they share the budget evenly.
 
-    An excerpt shorter than its share leaves the rest to the longer ones.
+    An excerpt shorter than its share leaves the rest to the longer ones. With fewer lines
+    left than excerpts, the first excerpts take them.
     """
+    if budget < len(sizes):
+        return _fill(sizes, budget)
     limits = [0] * len(sizes)
     shortest_first = sorted(range(len(sizes)), key=lambda i: sizes[i])
     for done, i in enumerate(shortest_first):
