@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 from fakes import SHA, FakeEmbedder, FixtureSource, KeywordReranker, ScriptedLLM
 
-from repolens import code_navigator
+from repolens import chunking, code_navigator
 from repolens.code_navigator import CodeFindings
 from repolens.ingest import ingest
 from repolens.report import Citation, Finding
@@ -168,6 +168,53 @@ def test_a_citation_may_name_the_class_or_method_it_points_into(
     llm = ScriptedLLM(CodeFindings(findings=[finding]), ReportDraft(answer="Checked [1]."))
 
     report = run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir))
+
+    assert report.findings == [finding]
+
+
+CLIENT_TS = """\
+export class Client {
+  request(url: string): Promise<Response> {
+    return this.#send(url);
+  }
+
+  #send(url: string): Promise<Response> {
+    return fetch(url);
+  }
+}
+"""
+
+
+@pytest.mark.parametrize(
+    ("lines", "symbol"),
+    [
+        ((6, 8), "Client.#send"),
+        ((6, 8), "Client.send"),
+        ((6, 8), "send"),
+        ((2, 4), "Client.#request"),
+    ],
+)
+def test_a_typescript_private_name_may_be_cited_with_or_without_its_hash(
+    store: ChunkStore,
+    runs_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    lines: tuple[int, int],
+    symbol: str,
+) -> None:
+    # A long class is split into one Chunk per method, named like `Client.#send`.
+    monkeypatch.setattr(chunking, "MAX_CHUNK_LINES", 5)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "client.ts").write_text(CLIENT_TS)
+    ingest(RepoRef("acme", "client"), FixtureSource(repo), FakeEmbedder(), store)
+    citation = Citation(path="client.ts", start_line=lines[0], end_line=lines[1], symbol=symbol)
+    finding = Finding(claim="Requests are sent with fetch.", citations=[citation])
+    llm = ScriptedLLM(CodeFindings(findings=[finding]), ReportDraft(answer="Sent [1]."))
+
+    report = run(
+        "How are requests sent?", Snapshot("acme", "client", SHA), config(store, llm, runs_dir)
+    )
 
     assert report.findings == [finding]
 
