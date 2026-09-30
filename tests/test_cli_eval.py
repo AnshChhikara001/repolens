@@ -5,7 +5,7 @@ from fakes import SHA, ScriptedLLM
 from typer.testing import CliRunner
 
 from repolens import cli
-from repolens.code_navigator import CodeFindings
+from repolens.code_navigator import AgentAction, CodeFindings
 from repolens.report import Citation, Finding
 from repolens.report_writer import ReportDraft
 from repolens.store import ChunkStore
@@ -45,13 +45,19 @@ def test_eval_prints_the_results_of_every_question(
     store: ChunkStore, fakes: ScriptedLLM, dataset: Path
 ) -> None:
     fakes.script.extend(
-        [CodeFindings(findings=[HASHED]), ReportDraft(answer="[1]"), CodeFindings(findings=[])]
+        [
+            AgentAction(action="answer", findings=[HASHED]),
+            ReportDraft(answer="[1]"),
+            AgentAction(action="answer"),
+        ]
     )
 
     result = runner.invoke(cli.app, ["eval", "--dataset", str(dataset)])
 
     assert result.exit_code == 0, result.output
-    assert result.stdout.startswith("Model: scripted · Reranking: on\n\n| Metric | Value |")
+    assert result.stdout.startswith(
+        "Model: scripted · Reranking: on · Agent steps: 8\n\n| Metric | Value |"
+    )
     assert "| Found nothing | 1/2 (50%) |" in result.stdout
     assert "| passwords | 1/1 | 1/1 | 1/1 | 1 |" in result.stdout
     assert "| billing | 0/1 | - | 0/0 | 0 |" in result.stdout
@@ -67,12 +73,24 @@ def test_eval_can_run_without_reranking(
         raise AssertionError("the reranker was loaded")
 
     monkeypatch.setattr(cli, "CrossEncoderReranker", no_reranker)
-    fakes.script.extend([CodeFindings(findings=[]), CodeFindings(findings=[])])
+    fakes.script.extend([AgentAction(action="answer"), AgentAction(action="answer")])
 
     result = runner.invoke(cli.app, ["eval", "--dataset", str(dataset), "--no-rerank"])
 
     assert result.exit_code == 0, result.output
-    assert result.stdout.startswith("Model: scripted · Reranking: off\n")
+    assert result.stdout.startswith("Model: scripted · Reranking: off · Agent steps: 8\n")
+
+
+def test_eval_can_limit_the_agent_steps(
+    store: ChunkStore, fakes: ScriptedLLM, dataset: Path
+) -> None:
+    fakes.script.extend([CodeFindings(findings=[]), CodeFindings(findings=[])])
+
+    result = runner.invoke(cli.app, ["eval", "--dataset", str(dataset), "--steps", "1"])
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout.startswith("Model: scripted · Reranking: on · Agent steps: 1\n")
+    assert fakes.script == []
 
 
 @pytest.mark.parametrize(
