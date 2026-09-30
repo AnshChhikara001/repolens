@@ -75,16 +75,16 @@ class Tools:
             if chunk.start_line <= end_line and start_line <= chunk.end_line
         ]
         if not excerpts:
-            last = chunks[-1].end_line
             return ToolResult(
-                f"{path} has no code in lines {start_line}-{end_line}"
-                f" (its code ends at line {last}).",
+                f"{path} has no code in lines {start_line}-{end_line}."
+                f" Its code is in lines {chunks[0].start_line}-{chunks[-1].end_line}.",
                 [],
             )
         return self._show(excerpts)
 
     def find_definition(self, name: str) -> ToolResult:
         """Where a function, class or method is defined, e.g. `login` or `LoginService.login`."""
+        name = name.strip().removesuffix("()")
         chunks = self._store.definitions(self._snapshot, name, MAX_DEFINITIONS)
         return self._show(chunks) if chunks else ToolResult(f"No definition of {name!r}.", [])
 
@@ -104,9 +104,10 @@ class Tools:
             if chunk.end_line - chunk.start_line + 1 > budget:
                 chunk = _cut(chunk, chunk.start_line, chunk.start_line + budget - 1)
                 notes.append(f"{chunk.path} was cut after line {chunk.end_line}.")
+            lines = chunk.end_line - chunk.start_line + 1
             shown.append(chunk)
-            budget -= chunk.end_line - chunk.start_line + 1
-            self._lines_shown += chunk.end_line - chunk.start_line + 1
+            budget -= lines
+            self._lines_shown += lines
         self._lines_read.add(shown)
         parts = [excerpt(chunk) for chunk in shown]
         if seen:

@@ -30,6 +30,8 @@ CHECKED = Finding(
 
 # Scores every Chunk the same, so reranking keeps the search order.
 SEARCH_ORDER = KeywordReranker()
+# Ranks `hash_password` first, so with TOP_K = 1 the Run's first search shows only it.
+FIRST_HASHING = KeywordReranker("def hash_password")
 
 
 @pytest.fixture
@@ -73,8 +75,7 @@ def test_the_code_navigator_reads_more_code_before_it_answers(
     )
 
     # The first search shows only `hash_password`; `LoginService.login` must be read.
-    reranker = KeywordReranker("def hash_password")
-    report = run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir, reranker))
+    report = run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir, FIRST_HASHING))
 
     assert "def login" not in llm.prompts[0][1]
     assert "14     def login(self, name: str, password: str) -> bool:" in llm.prompts[1][1]
@@ -95,10 +96,6 @@ def test_report_answers_from_cited_findings(ingested: ChunkStore, runs_dir: Path
     assert report.findings == [HASHED, CHECKED]
 
 
-# Only `hash_password` is found by the Run's first search.
-FIRST_HASHING = KeywordReranker("def hash_password")
-
-
 def search(query: str) -> AgentAction:
     return AgentAction(action="search", query=query)
 
@@ -107,7 +104,7 @@ def schemas(report: Report) -> list[str]:
     return [call.schema for call in report.calls]
 
 
-@pytest.mark.parametrize("name", ["LoginService", "login", "LoginService.login"])
+@pytest.mark.parametrize("name", ["LoginService", "login", "LoginService.login", " login() "])
 def test_the_code_navigator_can_look_up_a_definition(
     ingested: ChunkStore, runs_dir: Path, monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
@@ -136,6 +133,10 @@ def test_a_run_stops_after_eight_agent_steps_with_an_answer(
     assert schemas(report) == ["AgentAction"] * 7 + ["CodeFindings", "ReportDraft"]
     assert "Step 8 of 8, the last: answer with your findings now." in llm.prompts[7][1]
     assert report.findings == [HASHED]
+    steps = [e for e in read_log(runs_dir / f"{report.run_id}.jsonl") if e["event"] == "step"]
+    assert [e["step"] for e in steps] == list(range(1, 9))
+    assert steps[-1]["action"] == "answer"
+    assert steps[-1]["step_limit"] is True
 
 
 def test_with_one_step_the_code_navigator_answers_from_the_first_search(
@@ -177,6 +178,10 @@ def test_a_citation_to_lines_outside_a_read_is_dropped(
         (
             AgentAction(action="read", path="app/missing.py", start_line=1, end_line=5),
             f"There is no file 'app/missing.py' in {SNAPSHOT}.",
+        ),
+        (
+            AgentAction(action="read", path="app/auth.py", start_line=8, end_line=9),
+            "app/auth.py has no code in lines 8-9.",
         ),
         (AgentAction(action="read"), "read needs a `path`."),
         (AgentAction(action="search"), "search needs a `query`."),
@@ -307,8 +312,7 @@ def test_a_citation_to_lines_the_model_was_not_shown_is_dropped(
     llm = ScriptedLLM(answer(HASHED, unseen), ReportDraft(answer="Hashed [1]."))
 
     # Only `hash_password` is shown, so the real lines of `LoginService.login` can't be cited.
-    reranker = KeywordReranker("def hash_password")
-    report = run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir, reranker))
+    report = run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir, FIRST_HASHING))
 
     assert "def login" not in llm.prompts[0][1]
     assert report.findings == [HASHED]
@@ -460,8 +464,7 @@ def test_each_run_writes_a_log_of_its_steps_and_model_calls(
         ReportDraft(answer="Hashed [1]."),
     )
 
-    reranker = KeywordReranker("def hash_password")
-    report = run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir, reranker))
+    report = run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir, FIRST_HASHING))
 
     events = read_log(runs_dir / f"{report.run_id}.jsonl")
     assert [event.pop("event") for event in events] == [

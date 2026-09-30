@@ -56,20 +56,18 @@ class CodeFindings(BaseModel):
     findings: list[Finding]
 
 
-def find_code(
-    question: str, llm: LLM, tools: Tools, log: RunLog, max_steps: int = MAX_STEPS
-) -> list[Finding]:
+def find_code(question: str, llm: LLM, tools: Tools, log: RunLog, max_steps: int) -> list[Finding]:
     """Search and read the Snapshot with the Tools until the model answers with Findings."""
     first = tools.search_code(question)
     _log_tool(log, "search_code", {"query": question}, first)
     if not first.shown:
         return []
-    results = [(f"search {question!r}", first)]
+    results = [(_describe(AgentAction(action="search", query=question)), first)]
     for step in range(1, max_steps + 1):
         user = _prompt(question, results, step, max_steps)
         if step == max_steps:
             findings = llm.structured(SYSTEM_PROMPT, user, CodeFindings).value.findings
-            log.write("step", step=step, action="answer", findings=len(findings))
+            log.write("step", step=step, action="answer", findings=len(findings), step_limit=True)
             return findings
         action = llm.structured(SYSTEM_PROMPT, user, AgentAction).value
         if action.action == "answer":
