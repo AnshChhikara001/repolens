@@ -266,7 +266,11 @@ def test_the_report_ends_with_the_run_usage(ingested: ChunkStore, runs_dir: Path
 
 
 def test_each_run_writes_a_log_of_its_model_calls(ingested: ChunkStore, runs_dir: Path) -> None:
-    llm = ScriptedLLM(CodeFindings(findings=[HASHED]), ReportDraft(answer="Hashed [1]."))
+    made_up = Citation(path="app/auth.py", start_line=90, end_line=95, symbol="LoginService")
+    llm = ScriptedLLM(
+        CodeFindings(findings=[HASHED, Finding(claim="Made up.", citations=[made_up])]),
+        ReportDraft(answer="Hashed [1]."),
+    )
 
     report = run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir))
 
@@ -289,6 +293,7 @@ def test_each_run_writes_a_log_of_its_model_calls(ingested: ChunkStore, runs_dir
     }
     assert writer["schema"] == "ReportDraft"
     assert end["findings"] == 1
+    assert end["rejected"] == ["app/auth.py:90-95 LoginService"]
     assert end["answer"] == "Hashed [1]."
     assert end["duration_s"] == report.duration_s
 
