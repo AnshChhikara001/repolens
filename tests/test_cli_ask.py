@@ -6,7 +6,7 @@ from fakes import SHA, FailingLLM, ScriptedLLM
 from typer.testing import CliRunner
 
 from repolens import cli
-from repolens.code_navigator import CodeFindings
+from repolens.code_navigator import AgentAction
 from repolens.config import Settings
 from repolens.llm import LLMError
 from repolens.report import Citation, Finding
@@ -16,7 +16,8 @@ from repolens.store import ChunkStore
 runner = CliRunner()
 pytestmark = pytest.mark.usefixtures("clean_env")
 
-FINDINGS = CodeFindings(
+FINDINGS = AgentAction(
+    action="answer",
     findings=[
         Finding(
             claim="Passwords are hashed with SHA-256 and a fixed salt.",
@@ -31,7 +32,7 @@ FINDINGS = CodeFindings(
                 Citation(path="app/auth.py", start_line=6, end_line=7),
             ],
         ),
-    ]
+    ],
 )
 
 
@@ -66,7 +67,7 @@ def test_ask_prints_a_report_with_citations_usage_and_the_snapshot(
 
 
 def test_ask_writes_a_run_log(store: ChunkStore, fakes: ScriptedLLM, tmp_path: Path) -> None:
-    fakes.script.extend([CodeFindings(findings=[])])
+    fakes.script.extend([AgentAction(action="answer")])
 
     result = runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
 
@@ -75,7 +76,7 @@ def test_ask_writes_a_run_log(store: ChunkStore, fakes: ScriptedLLM, tmp_path: P
 
 
 def test_ask_reuses_an_ingested_snapshot(store: ChunkStore, fakes: ScriptedLLM) -> None:
-    fakes.script.extend([CodeFindings(findings=[]), CodeFindings(findings=[])])
+    fakes.script.extend([AgentAction(action="answer"), AgentAction(action="answer")])
     runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
 
     result = runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
@@ -104,11 +105,11 @@ def test_ask_needs_an_openai_key() -> None:
 # A local models file whose model finds nothing, in one call.
 LOCAL_MODELS = """
 from fakes import ScriptedLLM
-from repolens.code_navigator import CodeFindings
+from repolens.code_navigator import AgentAction
 
 
 def llm(name, timeout):
-    return ScriptedLLM(CodeFindings(findings=[]))
+    return ScriptedLLM(AgentAction(action="answer"))
 """
 
 

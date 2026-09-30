@@ -8,6 +8,7 @@ import psycopg
 import typer
 
 from repolens import __version__
+from repolens.code_navigator import MAX_STEPS
 from repolens.config import ModelConfigError, Settings
 from repolens.doctor import healthy, probe_database, run_checks
 from repolens.embedding import OpenAIEmbedder
@@ -100,6 +101,10 @@ def eval_command(
     rerank: Annotated[
         bool, typer.Option(help="Rerank the retrieved code before the model reads it.")
     ] = True,
+    steps: Annotated[
+        int,
+        typer.Option(min=1, help="Agent steps per question; 1 answers from the first search."),
+    ] = MAX_STEPS,
 ) -> None:
     """Answer the eval questions and print the results as markdown tables."""
     try:
@@ -116,7 +121,7 @@ def eval_command(
         llm = build_llm(settings)
         store = ChunkStore(settings.database_url)
         reranker = CrossEncoderReranker() if rerank else None
-        config = RunConfig(llm, embedder, store, reranker, settings.runs_dir)
+        config = RunConfig(llm, embedder, store, reranker, settings.runs_dir, steps)
         snapshots: dict[str, Snapshot] = {}
         numbers = {question.id: number for number, question in enumerate(questions, 1)}
 
@@ -131,7 +136,7 @@ def eval_command(
 
         outcomes = evaluate(questions, run_question)
     model = llm.name.partition(":")[2]
-    typer.echo(f"Model: {model} · Reranking: {'on' if rerank else 'off'}\n")
+    typer.echo(f"Model: {model} · Reranking: {'on' if rerank else 'off'} · Agent steps: {steps}\n")
     typer.echo(results_table(outcomes))
 
 

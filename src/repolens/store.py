@@ -1,12 +1,13 @@
 """Postgres storage for Snapshots and their embedded Chunks."""
 
+import re
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 
 import psycopg
 from psycopg import sql
 
-from repolens.chunking import Chunk
+from repolens.chunking import DEFINITION_PATTERN, Chunk
 from repolens.embedding import EMBEDDING_DIMENSIONS
 from repolens.snapshot import Snapshot
 
@@ -82,6 +83,16 @@ ORDER BY coalesce(1.0 / (%(k)s + keyword.rank), 0)
 LIMIT %(limit)s
 """
 RRF_K = 60
+
+# Chunks named after a symbol come first, then Chunks that define it inside, like a method
+# in a class that wasn't split.
+FIND_DEFINITIONS = """
+SELECT path, start_line, end_line, symbol, content
+FROM chunks
+WHERE snapshot_id = %(snapshot)s AND (symbol ~ %(symbol)s OR content ~ %(definition)s)
+ORDER BY symbol ~ %(symbol)s DESC, path, start_line
+LIMIT %(limit)s
+"""
 
 
 class SnapshotExistsError(Exception):
@@ -190,6 +201,22 @@ class ChunkStore:
         }
         with psycopg.connect(self.url) as conn:
             rows = conn.execute(SEARCH, params).fetchall()
+        return [Chunk(*row) for row in rows]
+
+    def definitions(self, snapshot: Snapshot, name: str, limit: int) -> list[Chunk]:
+        """Return the Chunks that define a name like `login` or `LoginService.login`.
+
+        A TypeScript private name matches with or without its `#`.
+        """
+        parts = [re.escape(part.removeprefix("#")) for part in name.split(".")]
+        params = {
+            "snapshot": str(snapshot),
+            "symbol": r"(^|\.)#?" + r"\.#?".join(parts) + "$",
+            "definition": DEFINITION_PATTERN.format(name="#?" + parts[-1]),
+            "limit": limit,
+        }
+        with psycopg.connect(self.url) as conn:
+            rows = conn.execute(FIND_DEFINITIONS, params).fetchall()
         return [Chunk(*row) for row in rows]
 
 

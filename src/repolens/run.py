@@ -1,9 +1,10 @@
 """A Run: one question answered against one Snapshot.
 
-The Code Navigator finds cited Findings, the citation verifier drops those that cite lines the
-model wasn't shown (ADR-0007), and the Report Writer turns the rest into a Report. Every model
-call is counted in the Report and written to the run log, which also records the rejected
-Citations and why a failed Run failed.
+The Code Navigator searches and reads the code until it can answer with cited Findings, the
+citation verifier drops those that cite lines the model wasn't shown (ADR-0007), and the Report
+Writer turns the rest into a Report. Every model call is counted in the Report and written to
+the run log, with each Agent step and Tool result, the rejected Citations and why a failed Run
+failed.
 """
 
 import time
@@ -14,7 +15,7 @@ from uuid import uuid4
 from pydantic import BaseModel
 
 from repolens.citations import verify
-from repolens.code_navigator import find_code
+from repolens.code_navigator import MAX_STEPS, find_code
 from repolens.embedding import Embedder
 from repolens.lines_read import LinesRead
 from repolens.llm import LLM, ModelCall, Reply
@@ -24,19 +25,24 @@ from repolens.rerank import Reranker
 from repolens.run_log import RunLog
 from repolens.snapshot import Snapshot
 from repolens.store import ChunkStore
+from repolens.tools import Tools
 
 NOT_FOUND = "Nothing in {snapshot} answers this question."
 
 
 @dataclass(frozen=True)
 class RunConfig:
-    """The model, stores and log directory a Run uses. No reranker keeps the search order."""
+    """The model, stores and log directory a Run uses, and how many Agent steps it may take.
+
+    No reranker keeps the search order.
+    """
 
     llm: LLM
     embedder: Embedder
     store: ChunkStore
     reranker: Reranker | None
     runs_dir: Path
+    max_steps: int = MAX_STEPS
 
 
 def run(question: str, snapshot: Snapshot, config: RunConfig) -> Report:
@@ -48,9 +54,8 @@ def run(question: str, snapshot: Snapshot, config: RunConfig) -> Report:
     llm = _RecordingLLM(config.llm, log)
     lines_read = LinesRead()
     try:
-        findings = find_code(
-            question, snapshot, llm, config.embedder, config.store, config.reranker, lines_read
-        )
+        tools = Tools(snapshot, config.embedder, config.store, config.reranker, lines_read)
+        findings = find_code(question, llm, tools, log, config.max_steps)
         findings, rejected = verify(findings, lines_read)
         if findings:
             answer = write_answer(question, findings, llm)

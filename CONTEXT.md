@@ -26,7 +26,7 @@ _Avoid_: action, plugin
 The last step of a Run. It writes the answer from the verified Findings only.
 
 **Run log**:
-The JSON Lines file a Run writes: its start, every model call with its tokens and latency, and its end (with the rejected Citations) or error.
+The JSON Lines file a Run writes: its start, every model call with its tokens and latency, every Agent step and Tool result, and its end (with the rejected Citations) or error.
 _Avoid_: trace, ledger
 
 ### Evidence
