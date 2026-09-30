@@ -31,6 +31,7 @@ class Recorder:
         self.respond = respond
         self.bodies: list[dict[str, Any]] = []
         self.urls: list[str] = []
+        self.waits: list[float] = []
 
     def __call__(self, request: Any) -> Any:
         self.urls.append(str(request.url))
@@ -38,10 +39,19 @@ class Recorder:
         return self.respond(request)
 
 
-def gemini(respond: Callable[[httpx.Request], httpx.Response]) -> tuple[GeminiLLM, Recorder]:
+def gemini(
+    respond: Callable[[httpx.Request], httpx.Response], max_retries: int = 0
+) -> tuple[GeminiLLM, Recorder]:
     recorder = Recorder(respond)
     client = httpx.Client(transport=httpx.MockTransport(recorder))
-    llm = GeminiLLM("gemini-test", api_key="g-key", timeout=30, http_client=client, max_retries=0)
+    llm = GeminiLLM(
+        "gemini-test",
+        api_key="g-key",
+        timeout=30,
+        http_client=client,
+        max_retries=max_retries,
+        sleep=recorder.waits.append,
+    )
     return llm, recorder
 
 
@@ -94,6 +104,56 @@ def test_gemini_provider_errors_are_one_readable_line() -> None:
         llm.structured(SYSTEM, QUESTION, Answer)
 
     assert str(error.value) == "google:gemini-test: 503 UNAVAILABLE, The model is overloaded."
+
+
+def rate_limited(retry_delay: str | None) -> httpx.Response:
+    details: list[dict[str, str]] = [{"@type": "type.googleapis.com/google.rpc.QuotaFailure"}]
+    if retry_delay is not None:
+        retry_info = {"@type": "type.googleapis.com/google.rpc.RetryInfo"}
+        details.append(retry_info | {"retryDelay": retry_delay})
+    error = {"code": 429, "message": "Quota exceeded.", "status": "RESOURCE_EXHAUSTED"}
+    return httpx.Response(429, json={"error": error | {"details": details}})
+
+
+def test_a_gemini_rate_limit_is_retried_once_after_the_delay_it_asks_for() -> None:
+    replies = iter([rate_limited("7s"), gemini_reply(ANSWER.model_dump_json())])
+    llm, recorder = gemini(lambda request: next(replies))
+
+    reply = llm.structured(SYSTEM, QUESTION, Answer)
+
+    assert reply.value == ANSWER
+    assert recorder.waits == [7.0]
+    assert len(recorder.bodies) == 2
+
+
+def test_a_gemini_rate_limit_after_the_retry_is_an_error() -> None:
+    llm, recorder = gemini(lambda request: rate_limited("0.5s"))
+
+    with pytest.raises(LLMError, match=r"^google:gemini-test: 429 RESOURCE_EXHAUSTED, Quota"):
+        llm.structured(SYSTEM, QUESTION, Answer)
+
+    assert recorder.waits == [0.5]
+    assert len(recorder.bodies) == 2
+
+
+@pytest.mark.parametrize("retry_delay", [None, "3600s"])
+def test_a_gemini_rate_limit_without_a_short_delay_is_not_retried(retry_delay: str | None) -> None:
+    llm, recorder = gemini(lambda request: rate_limited(retry_delay))
+
+    with pytest.raises(LLMError, match="429 RESOURCE_EXHAUSTED"):
+        llm.structured(SYSTEM, QUESTION, Answer)
+
+    assert recorder.waits == []
+    assert len(recorder.bodies) == 1
+
+
+def test_gemini_rate_limits_are_left_to_our_retry_not_the_sdk_backoff() -> None:
+    replies = iter([rate_limited("7s"), gemini_reply(ANSWER.model_dump_json())])
+    llm, recorder = gemini(lambda request: next(replies), max_retries=2)
+
+    llm.structured(SYSTEM, QUESTION, Answer)
+
+    assert recorder.waits == [7.0]
 
 
 def test_gemini_timeouts_are_timeout_errors() -> None:

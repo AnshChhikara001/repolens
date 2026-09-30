@@ -5,6 +5,7 @@ can return JSON works, without native tool calling. `CHAT_MODEL` names one as `p
 """
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol, cast
 
@@ -13,7 +14,7 @@ import httpx
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,11 @@ class ModelCall:
 
 # Each retry may wait the full CHAT_TIMEOUT, so keep them few.
 MAX_RETRIES = 2
+# A Gemini rate limit (429) says how long to wait; we wait that long and retry once, unless
+# it's longer than this (a daily quota asks for hours).
+MAX_RATE_LIMIT_WAIT_S = 60.0
+# The SDK's own backoff waits seconds, too short for a quota, so it retries only these.
+GEMINI_RETRY_STATUS_CODES = [408, 500, 502, 503, 504]
 # Low effort keeps Claude's latency and output tokens down; the answers are short and grounded.
 ANTHROPIC_EFFORT = "low"
 ANTHROPIC_MAX_TOKENS = 16_000
@@ -73,14 +79,18 @@ class GeminiLLM:
         timeout: float,
         http_client: httpx.Client | None = None,
         max_retries: int = MAX_RETRIES,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.name = f"google:{model}"
         self._model = model
+        self._sleep = sleep
         self._client = genai.Client(
             api_key=api_key,
             http_options=types.HttpOptions(
                 timeout=int(timeout * 1000),
-                retry_options=types.HttpRetryOptions(attempts=max_retries + 1),
+                retry_options=types.HttpRetryOptions(
+                    attempts=max_retries + 1, http_status_codes=GEMINI_RETRY_STATUS_CODES
+                ),
                 httpx_client=http_client,
             ),
         )
@@ -96,9 +106,19 @@ class GeminiLLM:
         )
         started = time.perf_counter()
         try:
-            response = self._client.models.generate_content(
-                model=self._model, contents=user, config=config
-            )
+            try:
+                response = self._client.models.generate_content(
+                    model=self._model, contents=user, config=config
+                )
+            except genai_errors.APIError as exc:
+                wait_s = _retry_delay(exc)
+                if wait_s is None or wait_s > MAX_RATE_LIMIT_WAIT_S:
+                    raise
+                self._sleep(wait_s)
+                started = time.perf_counter()
+                response = self._client.models.generate_content(
+                    model=self._model, contents=user, config=config
+                )
         except httpx.TimeoutException as exc:
             raise TimeoutError(f"{self.name} timed out") from exc
         except httpx.HTTPError as exc:
@@ -157,6 +177,35 @@ class AnthropicLLM:
             raise _misfit(self.name, schema)
         usage = response.usage
         return Reply(response.parsed_output, usage.input_tokens, usage.output_tokens, latency_s)
+
+
+class _ErrorDetail(BaseModel):
+    retry_delay: str = Field(default="", alias="retryDelay")
+
+
+class _Error(BaseModel):
+    details: list[_ErrorDetail] = []
+
+
+class _ErrorBody(BaseModel):
+    error: _Error
+
+
+def _retry_delay(exc: genai_errors.APIError) -> float | None:
+    """The seconds a Gemini 429 asks us to wait, from its RetryInfo, e.g. `"retryDelay": "7s"`."""
+    if exc.code != 429:
+        return None
+    details = cast(object, exc.details)  # pyright: ignore[reportUnknownMemberType]
+    try:
+        body = _ErrorBody.model_validate(details)
+    except ValidationError:
+        return None
+    for detail in body.error.details:
+        try:
+            return float(detail.retry_delay.removesuffix("s"))
+        except ValueError:
+            continue
+    return None
 
 
 def _parse[T: BaseModel](name: str, schema: type[T], text: str | None) -> T:
