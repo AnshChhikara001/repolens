@@ -3,12 +3,9 @@
 import re
 from collections.abc import Sequence
 
-from repolens.chunking import Chunk
+from repolens.chunking import DEFINITION, Chunk
 from repolens.lines_read import LinesRead
 from repolens.report import Citation, Finding
-
-# Keywords that define a name in Python or TypeScript.
-_DEFINITION = r"(?:def|class|function|interface|type|enum|const|let|var)\s+{name}(?!\w)"
 
 
 def verify(
@@ -53,7 +50,7 @@ def _names(excerpt: Chunk, name: str) -> bool:
     """The excerpt is named `name` or defines it. A part of the excerpt's name matches with
     or without the `#` of a TypeScript private name, like `#calculateDelay`."""
     bare = name.removeprefix("#")
-    definition = _DEFINITION.format(name=re.escape(name))
+    definition = DEFINITION.format(name=re.escape(name))
     return (
         any(part.removeprefix("#") == bare for part in excerpt.symbol.split("."))
         or re.search(definition, excerpt.text) is not None
