@@ -1,5 +1,7 @@
 # Hand-built plan-and-execute supervisor on LangGraph StateGraph
 
+> **Superseded** by [ADR-0011](0011-one-agent-in-plain-python.md): one Code Navigator agent in a plain Python loop, no supervisor or LangGraph.
+
 The supervisor emits a typed plan (steps with an agent, a goal and dependencies). Independent steps fan out in parallel via `Send`. The supervisor reviews the findings and either hands off to the Report Writer or re-plans, at most 2 times and 6 steps. We build the graph directly on `StateGraph` rather than using the prebuilt `langgraph-supervisor` or a ReAct-style "pick the next agent" loop. There are two reasons. A plan upfront gives us a cost estimate before any tokens are spent (see ADR-0004). Owning the graph keeps routing, state reducers and the re-plan loop explicit and testable.
 
 ## Considered Options

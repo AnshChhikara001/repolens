@@ -1,5 +1,7 @@
 # Per-run cost cap with shadow pricing and graceful degradation
 
+> **Superseded** by [ADR-0011](0011-one-agent-in-plain-python.md): a Run is bounded by Agent steps and lines shown, not by a budget. Reports show tokens and time; only the eval estimates cost.
+
 Every run carries a USD budget in graph state (default $0.02). Token usage is read from each model response's `usage_metadata` and priced from a small, reviewed YAML price table. We don't depend on a third-party price dump. Free-tier models are charged at the paid-tier "shadow" price of the equivalent model, so the cap and cost reporting mean something before real money is spent. At 80% of budget, remaining steps switch to the cheapest configured model. At 100%, the run stops and returns a partial report that says it was truncated. The planner's step count gives a pre-flight estimate. The hosted demo also has a per-IP rate limit and a daily run cap; bring-your-own-key lifts both.
 
 ## Considered Options
