@@ -104,21 +104,17 @@ class GeminiLLM:
             # We pass no Python functions as tools, so automatic function calling has no work.
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         )
-        started = time.perf_counter()
         try:
             try:
-                response = self._client.models.generate_content(
-                    model=self._model, contents=user, config=config
-                )
+                started = time.perf_counter()
+                response = self._generate(user, config)
             except genai_errors.APIError as exc:
                 wait_s = _retry_delay(exc)
                 if wait_s is None or wait_s > MAX_RATE_LIMIT_WAIT_S:
                     raise
                 self._sleep(wait_s)
                 started = time.perf_counter()
-                response = self._client.models.generate_content(
-                    model=self._model, contents=user, config=config
-                )
+                response = self._generate(user, config)
         except httpx.TimeoutException as exc:
             raise TimeoutError(f"{self.name} timed out") from exc
         except httpx.HTTPError as exc:
@@ -134,6 +130,11 @@ class GeminiLLM:
             (usage and usage.thoughts_token_count) or 0
         )
         return Reply(value, input_tokens, output_tokens, latency_s)
+
+    def _generate(
+        self, user: str, config: types.GenerateContentConfig
+    ) -> types.GenerateContentResponse:
+        return self._client.models.generate_content(model=self._model, contents=user, config=config)
 
 
 class AnthropicLLM:

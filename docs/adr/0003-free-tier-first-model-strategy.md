@@ -9,3 +9,4 @@ The total paid LLM budget for the project is about $1.50. Development, CI and th
 - Local LLMs were rejected: the development machine has 8 GB RAM, which isn't enough for reliable tool calling.
 - `LOCAL_MODELS` names a Python file that defines `PRICES` and `chat_model(name, timeout)`. It adds hosted providers the repository doesn't ship, not local LLMs. Its prices can only add models, never change reviewed ones, so the ledger and Budget still apply.
 - Every chat-model request has a timeout (`CHAT_TIMEOUT`, default 120s). Built-in providers get a small retry limit, so a slow free tier fails with a clear error instead of stalling a Run.
+- A Gemini rate limit (429) is the exception: the free tier's per-minute quota says how long to wait, so we wait that long (up to 60s) and retry once. A 429 without a delay, or with a longer one (the daily quota), fails at once.
