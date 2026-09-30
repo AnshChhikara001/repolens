@@ -3,7 +3,9 @@
 Every excerpt a Tool shows the model goes into the Lines read, cut to the lines shown and named
 after the Chunk around it, so the verifier accepts Citations to exactly those lines (ADR-0007).
 Excerpts the model has already seen are listed instead of shown again, and a Tool result and a
-whole Run show at most a fixed number of lines, so the prompt stays bounded.
+whole Run show at most a fixed number of lines, so the prompt stays bounded. The hits of a
+search or a definition lookup share their result's lines, so each shows at least its first
+lines; the model reads the rest with `read_lines`.
 """
 
 from collections.abc import Sequence
@@ -59,7 +61,11 @@ class Tools:
         else:
             candidates = self._store.search(self._snapshot, query, embedding, CANDIDATES)
             chunks = rerank(query, candidates, self._reranker, TOP_K)
-        return self._show(chunks) if chunks else ToolResult(f"No code matches {query!r}.", [])
+        return (
+            self._show(chunks, preview=True)
+            if chunks
+            else ToolResult(f"No code matches {query!r}.", [])
+        )
 
     def read_lines(self, path: str, start_line: int, end_line: int) -> ToolResult:
         """Lines of one file. Without a valid end line, as many lines as one result may show."""
@@ -86,33 +92,46 @@ class Tools:
         """Where a function, class or method is defined, e.g. `login` or `LoginService.login`."""
         name = name.strip().removesuffix("()")
         chunks = self._store.definitions(self._snapshot, name, MAX_DEFINITIONS)
-        return self._show(chunks) if chunks else ToolResult(f"No definition of {name!r}.", [])
+        return (
+            self._show(chunks, preview=True)
+            if chunks
+            else ToolResult(f"No definition of {name!r}.", [])
+        )
 
-    def _show(self, chunks: Sequence[Chunk]) -> ToolResult:
-        """Show the excerpts not seen yet, up to the line limits, and record them as read."""
-        shown: list[Chunk] = []
+    def _show(self, chunks: Sequence[Chunk], preview: bool = False) -> ToolResult:
+        """Show the excerpts not seen yet, up to the line limits, and record them as read.
+
+        Excerpts fill the limit in order, like the lines of one file. As a `preview`, the hits
+        of a search share it instead, so each shows at least its first lines.
+        """
+        new: list[Chunk] = []
         seen: list[Chunk] = []
-        notes: list[str] = []
-        budget = min(MAX_RESULT_LINES, MAX_RUN_LINES - self._lines_shown)
         for chunk in chunks:
-            if self._lines_read.covers(chunk.path, chunk.start_line, chunk.end_line):
-                seen.append(chunk)
+            covered = self._lines_read.covers(chunk.path, chunk.start_line, chunk.end_line)
+            (seen if covered else new).append(chunk)
+        budget = min(MAX_RESULT_LINES, MAX_RUN_LINES - self._lines_shown)
+        sizes = [_length(chunk) for chunk in new]
+        limits = _share(sizes, budget) if preview else _fill(sizes, budget)
+        self._lines_shown += sum(limits)
+        shown: list[Chunk] = []
+        parts: list[str] = []
+        for chunk, limit in zip(new, limits, strict=True):
+            if limit == 0:
                 continue
-            if budget <= 0:
-                notes.append(_limit_note(self._lines_shown))
-                break
-            if chunk.end_line - chunk.start_line + 1 > budget:
-                chunk = _cut(chunk, chunk.start_line, chunk.start_line + budget - 1)
-                notes.append(f"{chunk.path} was cut after line {chunk.end_line}.")
-            lines = chunk.end_line - chunk.start_line + 1
-            shown.append(chunk)
-            budget -= lines
-            self._lines_shown += lines
+            part = _cut(chunk, chunk.start_line, chunk.start_line + limit - 1)
+            shown.append(part)
+            parts.append(excerpt(part))
+            if part.end_line < chunk.end_line:
+                parts.append(
+                    f"{chunk.path} was cut after line {part.end_line}. Read lines"
+                    f" {part.end_line + 1}-{chunk.end_line} for the rest of {chunk.symbol}."
+                )
         self._lines_read.add(shown)
-        parts = [excerpt(chunk) for chunk in shown]
         if seen:
             parts.append("Already shown above: " + ", ".join(label(c) for c in seen))
-        return ToolResult("\n\n".join(parts + notes), shown)
+        if 0 in limits:
+            parts.append(_limit_note(self._lines_shown))
+        return ToolResult("\n\n".join(parts), shown)
 
 
 def excerpt(chunk: Chunk) -> str:
@@ -132,6 +151,32 @@ def _cut(chunk: Chunk, start_line: int, end_line: int) -> Chunk:
     """The lines from `start_line` to `end_line` of a Chunk, under the Chunk's symbol."""
     lines = chunk.text.split("\n")[start_line - chunk.start_line : end_line - chunk.start_line + 1]
     return replace(chunk, start_line=start_line, end_line=end_line, text="\n".join(lines))
+
+
+def _length(chunk: Chunk) -> int:
+    return chunk.end_line - chunk.start_line + 1
+
+
+def _fill(sizes: list[int], budget: int) -> list[int]:
+    """How many lines each excerpt shows when each in turn takes all it needs."""
+    limits: list[int] = []
+    for size in sizes:
+        limits.append(min(size, budget))
+        budget -= limits[-1]
+    return limits
+
+
+def _share(sizes: list[int], budget: int) -> list[int]:
+    """How many lines each excerpt shows when they share the budget evenly.
+
+    An excerpt shorter than its share leaves the rest to the longer ones.
+    """
+    limits = [0] * len(sizes)
+    shortest_first = sorted(range(len(sizes)), key=lambda i: sizes[i])
+    for done, i in enumerate(shortest_first):
+        limits[i] = min(sizes[i], budget // (len(sizes) - done))
+        budget -= limits[i]
+    return limits
 
 
 def _limit_note(lines_shown: int) -> str:
