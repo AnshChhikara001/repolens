@@ -1,7 +1,7 @@
 [project]
 name = "repolens"
 version = "0.1.0"
-description = "Multi-agent Q&A over GitHub repositories with verifiable citations, a per-run cost cap and guardrails"
+description = "Agentic Q&A over GitHub repositories with citations checked against the pinned commit"
 readme = "README.md"
 license = "MIT"
 authors = [{ name = "Ansh Chhikara" }]

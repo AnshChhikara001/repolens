@@ -1,5 +1,7 @@
 # Free-tier-first model strategy; paid models only for evaluation
 
+> **Partly superseded** by [ADR-0011](0011-one-agent-in-plain-python.md): models are built by repolens's own adapters, not `init_chat_model`; Groq is gone; the `LOCAL_MODELS` file defines only `llm(name, timeout)`, with no prices. Gemini on the free tier as the default, timeouts, retries and the rate-limit wait still hold.
+
 The total paid LLM budget for the project is about $1.50. Development, CI and the hosted demo run on free tiers: Gemini Flash / Flash-Lite, with Groq as a fallback. Tests use fake chat models and recorded responses. The OpenAI budget pays for embeddings (ADR-0010, a few cents per repository) and the comparison column in the final eval (about $0.35 per 40-question run on a nano-tier model). A hard spend limit is set in the provider dashboard. Every built-in model is configured through `init_chat_model`, so a provider change is one config line. Providers kept out of the repository plug in through a `LOCAL_MODELS` file instead (see below).
 
 ## Consequences
