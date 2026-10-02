@@ -6,6 +6,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from repolens.code_navigator import ToolCall
 from repolens.embedding import EMBEDDING_DIMENSIONS
 from repolens.llm import Reply
 from repolens.snapshot import RepoRef, Snapshot
@@ -48,6 +49,10 @@ def fixture_source(token: str | None) -> FixtureSource:
 def fake_embedder(api_key: str) -> FakeEmbedder:
     """Stands in for `OpenAIEmbedder(api_key=...)`."""
     return FakeEmbedder()
+
+
+# A Code Navigator's first Tool call that shows nothing, so the answer rests on the first search.
+NOTHING_NEW = ToolCall(action="define", name="logout")
 
 
 class KeywordReranker:
