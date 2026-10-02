@@ -56,16 +56,16 @@ Design decisions are recorded in [`docs/adr/`](docs/adr/) and the vocabulary in 
 
 | Model | Setup | File recall | Symbol recall | Citation validity | Input tokens | Run time | Est. cost |
 |---|---|---|---|---|---|---|---|
-| Gemini 3.1 Flash-Lite | one-shot | 64–68% | 45–49% | 96–100% | 5,432 | 11.5s | $0.0019 |
-| Gemini 3.1 Flash-Lite | agent | 80% | 61% | 99–100% | 16,679 | 16.1s | $0.0049 |
+| Gemini 3.1 Flash-Lite | one-shot | 64–68% | 45–49% | 99% | 5,432 | 11.5s | $0.0019 |
+| Gemini 3.1 Flash-Lite | agent | 80% | 61% | 99% | 16,679 | 16.1s | $0.0049 |
 | Claude Sonnet 5 | one-shot | 60% | 45% | 99–100% | 7,862 | 17.0s | $0.0259 |
-| Claude Sonnet 5 | agent | **90–94%** | **88–92%** | 98–100% | 28,885 | 30.1s | $0.0710 |
+| Claude Sonnet 5 | agent | **90–94%** | **88–92%** | 99–100% | 28,885 | 30.1s | $0.0710 |
 
 Recall and validity are over the questions that got an answer; 3 of 58 one-shot Gemini Runs failed with provider overload errors (503), and 2 of 58 Sonnet 5 agent Runs with a timeout. Tokens, time and cost are means per question; cost is estimated at list prices. The typer and ky questions were recorded first (one-shot on 2026-09-30, agent on 2026-10-02), and the totals weight the two recordings by question count.
 
 - **Searching and reading beats answering from one search.** On Claude Sonnet 5 the agent finds 90–94% of the expected files, against 60% one-shot, for about 3.7x the tokens. On flask, httpx and zod it finds all of them.
 - **Gemini 3.1 Flash-Lite needs a push to look.** Requiring one Tool call before the answer took its file recall on typer and ky from 66–71% to 78%; it still answers right after that call in most Runs.
-- **Citations stay valid.** The verifier kept 96–100% of Citations in every setup.
+- **Citations stay valid.** The verifier kept 96–100% of Citations in every setup and run.
 - **Retrieval still misses some code.** On two ky questions and one httpx question, test files that use the question's words crowd the source out of the search results.
 
 Full tables and analysis: [agent vs one-shot on typer and ky](evals/results/agent.md), [flask, httpx and zod](evals/results/demo-repos.md), and the [one-shot baseline](evals/results/baseline.md) that kept the reranker.

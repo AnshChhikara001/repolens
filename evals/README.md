@@ -8,7 +8,7 @@ repolens answers questions about a codebase and points to the lines that back ea
 - **The right answer is written down first.** For every question, the files and functions that hold the answer were looked up in the source and saved with it ([`questions.toml`](questions.toml)).
 - **Each project is pinned to one commit**, so every run sees exactly the same code.
 - **A program does the scoring**, not a person or another AI. It checks whether the answer points to the expected files.
-- **A citation counts only if the model was shown those lines.** A verifier drops every reference to code the model didn't see, so it can't invent a plausible file and line number.
+- **A citation counts only if the model was shown those lines.** A verifier drops every citation to lines the model wasn't shown, so it can't invent a plausible file and line number.
 - **Every setup runs twice**, and errors (a model timeout, an overloaded API) are counted, not hidden.
 
 Each question is answered in two ways. **One-shot**: the model gets one search of the code and must answer from it. **Agent**: the model can also search again, read files and look up definitions, up to 8 times, before it answers.
@@ -26,7 +26,9 @@ Ranges are the two runs. Letting the model look further lifts Claude Sonnet 5 by
 
 ## What it still misses
 
-The same failure shows up in ky and httpx. When the test files use the question's words, they fill the search results and push the real code out. On *"How does httpx choose how to decompress a response body?"*, all 6 first hits are tests. With only those, Claude Sonnet 5 says it can't answer, and Gemini answers from the tests. As an agent, each model searches again with the code's own words (`Content-Encoding`, `decoder`) and finds it. On two ky questions, even that usually isn't enough.
+Most misses have one cause, seen in ky and httpx. When the test files use the question's words, they fill the search results and push the real code out. On *"How does httpx choose how to decompress a response body?"*, all 6 first hits are tests. With only those, Claude Sonnet 5 says it can't answer, and Gemini answers from the tests. As an agent, Claude Sonnet 5 searches again with the code's own words (`Content-Encoding`, `decoder`) and finds it; Gemini finds half of it. On two ky questions, even that usually isn't enough.
+
+The other cause is the model's search words. On a zod question, Gemini searches with the question's words and gets the older Zod 3 code; Claude Sonnet 5 searches with the names the code uses and finds the Zod 4 parser.
 
 So the next gain is in **retrieval, not the model**: rank source files above tests, so that the first search shows the code that does the work.
 
