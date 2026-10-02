@@ -79,7 +79,7 @@ def find_code(question: str, llm: LLM, tools: Tools, log: RunLog, max_steps: int
     _log_tool(log, "search_code", {"query": question}, first)
     if not first.shown:
         return []
-    results = [(_describe(AgentAction(action="search", query=question)), first)]
+    results = [(_describe(ToolCall(action="search", query=question)), first)]
     for step in range(1, max_steps + 1):
         user = _prompt(question, results, step, max_steps)
         if step == max_steps:
