@@ -146,3 +146,73 @@ repo = "sindresorhus/ky@0d59458a0a58e1c3d7c6db0ab17ed5c7cd671e47"
 question = "How does ky stop reading a response body that is larger than maxResponseSize?"
 expected_files = ["source/utils/body.ts"]
 expected_symbols = ["limitResponseSize"]
+
+# --- pallets/flask: a Python web framework ----------------------------------------------
+
+[[questions]]
+id = "flask-make-response"
+repo = "pallets/flask@d73fa1cdcbd8b1465c151db8924ba58b1dd14e35"
+question = "How does Flask turn what a view function returns, like a string, dict or tuple, into a response?"
+expected_files = ["src/flask/app.py"]
+expected_symbols = ["Flask.make_response"]
+
+[[questions]]
+id = "flask-before-request"
+repo = "pallets/flask@d73fa1cdcbd8b1465c151db8924ba58b1dd14e35"
+question = "How do before_request functions run, and what happens when one of them returns a value?"
+expected_files = ["src/flask/app.py"]
+expected_symbols = ["Flask.preprocess_request", "Flask.full_dispatch_request"]
+
+[[questions]]
+id = "flask-find-app"
+repo = "pallets/flask@d73fa1cdcbd8b1465c151db8924ba58b1dd14e35"
+question = "How does the `flask` command find the application in a module when no app name is given?"
+expected_files = ["src/flask/cli.py"]
+expected_symbols = ["find_best_app"]
+
+# --- encode/httpx: a Python HTTP client -------------------------------------------------
+
+[[questions]]
+id = "httpx-redirect"
+repo = "encode/httpx@b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+question = "When httpx follows a redirect, how does it pick the new method and which headers does it drop?"
+expected_files = ["httpx/_client.py"]
+expected_symbols = ["BaseClient._redirect_method", "BaseClient._redirect_headers"]
+
+[[questions]]
+id = "httpx-digest-auth"
+repo = "encode/httpx@b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+question = "How does DigestAuth answer a 401 challenge from the server?"
+expected_files = ["httpx/_auth.py"]
+expected_symbols = ["DigestAuth.auth_flow", "DigestAuth._build_auth_header"]
+
+[[questions]]
+id = "httpx-content-decoding"
+repo = "encode/httpx@b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+question = "How does httpx choose how to decompress a response body, for example gzip, brotli or several encodings at once?"
+expected_files = ["httpx/_models.py", "httpx/_decoders.py"]
+expected_symbols = ["Response._get_content_decoder", "MultiDecoder"]
+
+# --- colinhacks/zod: a TypeScript schema validation library -----------------------------
+# The repo ships Zod 3 and Zod 4 side by side, so the questions name Zod 4.
+
+[[questions]]
+id = "zod-unknown-keys"
+repo = "colinhacks/zod@004d800c9e3cd4c79930f55aa4ad080225b22efd"
+question = "In Zod 4, what does an object schema do with input keys that aren't in its shape, in strict and loose mode?"
+expected_files = ["packages/zod/src/v4/core/schemas.ts"]
+expected_symbols = ["handleCatchall"]
+
+[[questions]]
+id = "zod-discriminated-union"
+repo = "colinhacks/zod@004d800c9e3cd4c79930f55aa4ad080225b22efd"
+question = "In Zod 4, how does a discriminated union choose which option to parse an object with, and what happens when none matches?"
+expected_files = ["packages/zod/src/v4/core/schemas.ts"]
+expected_symbols = ["$ZodDiscriminatedUnion", "discriminatorMap"]
+
+[[questions]]
+id = "zod-treeify-error"
+repo = "colinhacks/zod@004d800c9e3cd4c79930f55aa4ad080225b22efd"
+question = "How does Zod 4 turn a ZodError's flat list of issues into a nested tree that follows the shape of the input?"
+expected_files = ["packages/zod/src/v4/core/errors.ts"]
+expected_symbols = ["treeifyError"]
