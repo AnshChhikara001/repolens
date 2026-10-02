@@ -7,6 +7,9 @@ DEFAULT_DATABASE_URL = "postgresql://repolens:repolens@localhost:5432/repolens"
 DEFAULT_CHAT_MODEL = "google:gemini-3.1-flash-lite"
 DEFAULT_CHAT_TIMEOUT = 120.0
 DEFAULT_RUNS_DIR = Path.home() / ".repolens" / "runs"
+# A Run makes up to about 10 model calls; Gemini's free tier allows about 500 a day.
+DEFAULT_DEMO_RUNS_PER_HOUR = 5
+DEFAULT_DEMO_RUNS_PER_DAY = 40
 
 
 class Settings(BaseSettings):
@@ -23,6 +26,8 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
     github_token: SecretStr | None = None
+    demo_runs_per_hour: int = DEFAULT_DEMO_RUNS_PER_HOUR
+    demo_runs_per_day: int = DEFAULT_DEMO_RUNS_PER_DAY
 
 
 class ModelConfigError(Exception):

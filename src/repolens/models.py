@@ -10,6 +10,8 @@ from collections.abc import Callable
 from functools import cache
 from pathlib import Path
 
+from pydantic import SecretStr
+
 from repolens.config import ModelConfigError, Settings
 from repolens.llm import LLM, AnthropicLLM, GeminiLLM
 
@@ -27,11 +29,16 @@ def chat_provider(settings: Settings) -> str:
     return settings.chat_model.partition(":")[0]
 
 
-def build_llm(settings: Settings) -> LLM:
-    """Build the chat model named by `CHAT_MODEL`."""
+def build_llm(settings: Settings, api_key: str | None = None) -> LLM:
+    """Build the chat model named by `CHAT_MODEL`, on `api_key` instead of ours if given."""
     provider = chat_provider(settings)
     model = settings.chat_model.partition(":")[2]
     if provider not in PROVIDERS:
+        if api_key is not None:
+            raise ModelConfigError(
+                f"an own API key works only with {', '.join(PROVIDERS)} models,"
+                f" not {settings.chat_model}"
+            )
         if settings.local_models is None:
             raise ModelConfigError(
                 f"unsupported chat model {settings.chat_model!r}: use provider:model with one of"
@@ -39,12 +46,14 @@ def build_llm(settings: Settings) -> LLM:
             )
         return load_local_models(settings.local_models)(settings.chat_model, settings.chat_timeout)
     adapter, key_setting = PROVIDERS[provider]
-    key = getattr(settings, key_setting)
-    if key is None:
-        raise ModelConfigError(
-            f"{key_setting.upper()} is not set (needed for {settings.chat_model})"
-        )
-    return adapter(model, api_key=key.get_secret_value(), timeout=settings.chat_timeout)
+    if api_key is None:
+        ours: SecretStr | None = getattr(settings, key_setting)
+        if ours is None:
+            raise ModelConfigError(
+                f"{key_setting.upper()} is not set (needed for {settings.chat_model})"
+            )
+        api_key = ours.get_secret_value()
+    return adapter(model, api_key=api_key, timeout=settings.chat_timeout)
 
 
 @cache
