@@ -5,6 +5,8 @@ Recorded 2026-09-30 with `repolens eval` on [`evals/questions.toml`](../question
 - **Agent** (`--steps 8`): the Run searches for the question, then the model takes up to 8 Agent steps. Each step either calls a Tool (`search`, `read`, `define`) or answers.
 - **One-shot** (`--steps 1`): the same first search, then the model must answer at once.
 
+The 9 questions on flask, httpx and zod, added later, are in [demo-repos.md](demo-repos.md), with the totals over all 29.
+
 This is the second recording. Since the first one:
 - a search shows the first lines of every hit, instead of cutting the result at 500 lines;
 - the prompt asks the agent to answer only once it has seen the code that does the work, not tests or type declarations that mention it;
