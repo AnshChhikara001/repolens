@@ -1,6 +1,7 @@
 from pathlib import Path
+from typing import Annotated
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_DATABASE_URL = "postgresql://repolens:repolens@localhost:5432/repolens"
@@ -26,8 +27,8 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
     github_token: SecretStr | None = None
-    demo_runs_per_hour: int = DEFAULT_DEMO_RUNS_PER_HOUR
-    demo_runs_per_day: int = DEFAULT_DEMO_RUNS_PER_DAY
+    demo_runs_per_hour: Annotated[int, Field(ge=1)] = DEFAULT_DEMO_RUNS_PER_HOUR
+    demo_runs_per_day: Annotated[int, Field(ge=1)] = DEFAULT_DEMO_RUNS_PER_DAY
 
 
 class ModelConfigError(Exception):

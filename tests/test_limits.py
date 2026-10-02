@@ -1,5 +1,5 @@
 import pytest
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 from repolens.config import ModelConfigError, Settings
 from repolens.limits import DemoLimits, LimitExceeded, llm_for_visitor
@@ -87,7 +87,8 @@ def test_a_refused_run_does_not_use_up_the_daily_cap() -> None:
 
 
 def test_the_message_offers_the_visitors_own_key() -> None:
-    settings, limits, _ = demo(per_hour=0)
+    settings, limits, _ = demo(per_hour=1)
+    llm_for_visitor(settings, limits, "1.1.1.1", None)
 
     with pytest.raises(LimitExceeded, match="or use your own API key"):
         llm_for_visitor(settings, limits, "1.1.1.1", None)
@@ -102,7 +103,7 @@ def test_a_visitors_own_key_bypasses_both_limits_and_uses_none_of_them() -> None
     llm_for_visitor(settings, limits, "1.1.1.1", None)
 
 
-def test_a_visitors_own_key_is_the_one_the_model_uses() -> None:
+def test_a_visitors_own_key_needs_no_key_of_ours() -> None:
     settings = Settings()  # no key of ours
     limits = DemoLimits(settings, Clock())
 
@@ -114,7 +115,8 @@ def test_a_visitors_own_key_is_the_one_the_model_uses() -> None:
 
 
 def test_a_blank_key_is_not_a_key() -> None:
-    settings, limits, _ = demo(per_hour=0)
+    settings, limits, _ = demo(per_hour=1)
+    llm_for_visitor(settings, limits, "1.1.1.1", None)
 
     with pytest.raises(LimitExceeded):
         llm_for_visitor(settings, limits, "1.1.1.1", "  ")
@@ -126,3 +128,9 @@ def test_a_visitors_key_cannot_go_to_a_local_models_provider() -> None:
 
     with pytest.raises(ModelConfigError, match="own API key works only with"):
         llm_for_visitor(settings, limits, "1.1.1.1", "their-key")
+
+
+@pytest.mark.parametrize("setting", ["demo_runs_per_hour", "demo_runs_per_day"])
+def test_limits_are_at_least_one(setting: str) -> None:
+    with pytest.raises(ValidationError, match=setting):
+        Settings.model_validate({setting: 0})
