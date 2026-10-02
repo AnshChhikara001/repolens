@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from fakes import SHA, ScriptedLLM
+from fakes import NOTHING_NEW, SHA, ScriptedLLM
 from typer.testing import CliRunner
 
 from repolens import cli
@@ -46,8 +46,10 @@ def test_eval_prints_the_results_of_every_question(
 ) -> None:
     fakes.script.extend(
         [
+            NOTHING_NEW,
             AgentAction(action="answer", findings=[HASHED]),
             ReportDraft(answer="[1]"),
+            NOTHING_NEW,
             AgentAction(action="answer"),
         ]
     )
@@ -73,7 +75,7 @@ def test_eval_can_run_without_reranking(
         raise AssertionError("the reranker was loaded")
 
     monkeypatch.setattr(cli, "CrossEncoderReranker", no_reranker)
-    fakes.script.extend([AgentAction(action="answer"), AgentAction(action="answer")])
+    fakes.script.extend([NOTHING_NEW, AgentAction(action="answer")] * 2)
 
     result = runner.invoke(cli.app, ["eval", "--dataset", str(dataset), "--no-rerank"])
 

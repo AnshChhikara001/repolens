@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 
 import pytest
-from fakes import SHA, FailingLLM, ScriptedLLM
+from fakes import NOTHING_NEW, SHA, FailingLLM, ScriptedLLM
 from typer.testing import CliRunner
 
 from repolens import cli
@@ -36,14 +36,14 @@ FINDINGS = AgentAction(
 )
 
 
-USAGE = r"2 calls · 2,000 in / 200 out tokens · \d+\.\ds\n"
+USAGE = r"3 calls · 3,000 in / 300 out tokens · \d+\.\ds\n"
 
 
 def test_ask_prints_a_report_with_citations_usage_and_the_snapshot(
     store: ChunkStore, fakes: ScriptedLLM
 ) -> None:
     fakes.script.extend(
-        [FINDINGS, ReportDraft(answer="Passwords are salted SHA-256 hashes [1][2].")]
+        [NOTHING_NEW, FINDINGS, ReportDraft(answer="Passwords are salted SHA-256 hashes [1][2].")]
     )
 
     result = runner.invoke(cli.app, ["ask", "acme/shop@main", "How are passwords stored?"])
@@ -67,7 +67,7 @@ def test_ask_prints_a_report_with_citations_usage_and_the_snapshot(
 
 
 def test_ask_writes_a_run_log(store: ChunkStore, fakes: ScriptedLLM, tmp_path: Path) -> None:
-    fakes.script.extend([AgentAction(action="answer")])
+    fakes.script.extend([NOTHING_NEW, AgentAction(action="answer")])
 
     result = runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
 
@@ -76,7 +76,7 @@ def test_ask_writes_a_run_log(store: ChunkStore, fakes: ScriptedLLM, tmp_path: P
 
 
 def test_ask_reuses_an_ingested_snapshot(store: ChunkStore, fakes: ScriptedLLM) -> None:
-    fakes.script.extend([AgentAction(action="answer"), AgentAction(action="answer")])
+    fakes.script.extend([NOTHING_NEW, AgentAction(action="answer")] * 2)
     runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
 
     result = runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
@@ -102,14 +102,14 @@ def test_ask_needs_an_openai_key() -> None:
     assert "OPENAI_API_KEY" in result.output
 
 
-# A local models file whose model finds nothing, in one call.
+# A local models file whose model finds nothing, in two calls.
 LOCAL_MODELS = """
-from fakes import ScriptedLLM
+from fakes import NOTHING_NEW, ScriptedLLM
 from repolens.code_navigator import AgentAction
 
 
 def llm(name, timeout):
-    return ScriptedLLM(AgentAction(action="answer"))
+    return ScriptedLLM(NOTHING_NEW, AgentAction(action="answer"))
 """
 
 
@@ -127,7 +127,7 @@ def test_ask_runs_a_model_from_the_local_models_file(
     result = runner.invoke(cli.app, ["ask", "acme/shop", "Where is billing?"])
 
     assert result.exit_code == 0, result.output
-    assert re.search(r"\n\n1 call · 1,000 in / 100 out tokens · \d+\.\ds\n$", result.stdout)
+    assert re.search(r"\n\n2 calls · 2,000 in / 200 out tokens · \d+\.\ds\n$", result.stdout)
     assert "Answering with fake:scripted…" in result.stderr
 
 

@@ -15,7 +15,7 @@ The agent that looks through a Snapshot for the code that answers the question a
 _Avoid_: retriever, searcher
 
 **Agent step**:
-One turn of the Code Navigator: a model call that returns a single action, either a Tool call or the answer.
+One turn of the Code Navigator: a model call that returns a single action, either a Tool call or the answer. The last is always the answer, and, in a Run of more than one step, the first is always a Tool call.
 _Avoid_: iteration, hop
 
 **Tool**:

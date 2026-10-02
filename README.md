@@ -44,7 +44,7 @@ flowchart LR
 
 - **Snapshots.** A repository is pinned to a commit SHA, downloaded as a tarball and split with tree-sitter into function-, class- and section-level Chunks of its Python and TypeScript code. Each Snapshot is embedded once, so citations stay valid and eval questions stay reproducible.
 - **Hybrid search.** Postgres full-text search and pgvector similarity are fused with reciprocal rank fusion, then a small local cross-encoder reranks the candidates.
-- **The Code Navigator.** A Run starts with a search for the question. Then each Agent step is one model call that returns one structured action: `search`, `read` lines of a file, `define` a symbol, or `answer` with Findings. There's no native tool calling, so any model that returns JSON works. A Run takes at most 8 steps and is shown at most 1,500 lines.
+- **The Code Navigator.** A Run starts with a search for the question. Then each Agent step is one model call that returns one structured action: `search`, `read` lines of a file, `define` a symbol, or `answer` with Findings. The first step must call a Tool, so the model always looks past the first search. There's no native tool calling, so any model that returns JSON works. A Run takes at most 8 steps and is shown at most 1,500 lines.
 - **Verified citations.** Every excerpt the model is shown is recorded. A Citation survives only if every cited line was shown and the symbol it names is there. The Report Writer then writes the answer from the verified Findings only.
 - **Run log.** Each Run writes a JSON Lines file with every model call (tokens, latency), Agent step, Tool result and rejected Citation to `~/.repolens/runs/`.
 
@@ -52,20 +52,20 @@ Design decisions are recorded in [`docs/adr/`](docs/adr/) and the vocabulary in 
 
 ## Results
 
-20 questions on two pinned repositories, [`fastapi/typer`](https://github.com/fastapi/typer) (Python) and [`sindresorhus/ky`](https://github.com/sindresorhus/ky) (TypeScript), each with the files and symbols a good answer cites ([`evals/questions.toml`](evals/questions.toml)). One-shot means the model answers from the first search alone. Two runs per setup.
+20 questions on two pinned repositories, [`fastapi/typer`](https://github.com/fastapi/typer) (Python) and [`sindresorhus/ky`](https://github.com/sindresorhus/ky) (TypeScript), each with the files and symbols a good answer cites ([`evals/questions.toml`](evals/questions.toml)). One-shot means the model answers from the first search alone. Two runs per setup; the agent rows are from 2026-10-02, after the first Agent step was required to call a Tool.
 
 | Model | Setup | File recall | Symbol recall | Citation validity | Input tokens | Run time | Est. cost |
 |---|---|---|---|---|---|---|---|
 | Gemini 3.1 Flash-Lite | one-shot | 58–64% | 38–43% | 100% | 5,735 | 12.5s | $0.0020 |
-| Gemini 3.1 Flash-Lite | agent | 66–71% | 54–59% | 96–100% | 9,926 | 15.4s | $0.0031 |
+| Gemini 3.1 Flash-Lite | agent | 78% | 61% | 99% | 19,467 | 15.9s | $0.0056 |
 | Claude Sonnet 5 | one-shot | 52% | 38% | 99–100% | 8,184 | 16.8s | $0.0265 |
-| Claude Sonnet 5 | agent | **85–92%** | **88–93%** | 99% | 29,050 | 27.7s | $0.0707 |
+| Claude Sonnet 5 | agent | **86–92%** | **87–93%** | 98–100% | 34,688 | 32.1s | $0.0827 |
 
-Recall and validity are over the questions that got an answer; 5 of 80 Gemini Runs failed with provider overload errors (503) and none of Sonnet 5's. Tokens, time and cost are means per question; cost is estimated at list prices.
+Recall and validity are over the questions that got an answer; 3 of 40 one-shot Gemini Runs failed with provider overload errors (503), and 2 of 40 Sonnet 5 agent Runs with a timeout. Tokens, time and cost are means per question; cost is estimated at list prices.
 
-- **Searching and reading beats answering from one search.** On Claude Sonnet 5 the agent finds 85–92% of the expected files, against 52% one-shot, for about 3.5x the tokens.
-- **Gemini 3.1 Flash-Lite mostly answers at once.** It stopped after the first step in 25 of 38 Runs, so it gains much less from the agent.
-- **Citations stay valid.** The verifier kept 96–100% of Citations in every setup.
+- **Searching and reading beats answering from one search.** On Claude Sonnet 5 the agent finds 86–92% of the expected files, against 52% one-shot, for about 4x the tokens.
+- **Gemini 3.1 Flash-Lite needs a push to look.** It used to answer from the first search in 25 of 38 Runs. Requiring one Tool call first took its file recall from 66–71% to 78%, at twice the tokens; it still answers right after that call in 15 of 20 Runs.
+- **Citations stay valid.** The verifier kept 98–100% of Citations in every setup.
 - **Retrieval still misses some code.** On two ky questions, long test files and type declarations crowd the source out of the search results.
 
 Full tables and analysis: [agent vs one-shot](evals/results/agent.md), and the [one-shot baseline](evals/results/baseline.md) that kept the reranker.

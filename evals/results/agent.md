@@ -10,6 +10,23 @@ This is the second recording. Since the first one:
 - the prompt asks the agent to answer only once it has seen the code that does the work, not tests or type declarations that mention it;
 - a Gemini rate limit (429) is retried once after the delay it asks for.
 
+## Update, 2026-10-02: the first step calls a Tool
+
+Gemini 3.1 Flash-Lite answered straight from the first search in 25 of 38 agent Runs. Since commit `a635daa`, the first Agent step may only call a Tool: its schema has no `answer`, so every model looks past the first search before it answers. One-shot Runs are unchanged (their only step answers), so only the agent was re-run, two runs per model:
+
+| Setup | File recall | Symbol recall | Citation validity | Input tokens | Run time | Est. cost | Errors |
+|---|---|---|---|---|---|---|---|
+| Gemini 3.1 Flash-Lite, agent | 66–71% → **78%** | 54–59% → **61%** | 99% | 9,926 → 19,467 | 15.4s → 15.9s | $0.0031 → $0.0056 | 0 / 40 |
+| Claude Sonnet 5, agent | 85–92% → 86–92% | 88–93% → 87–93% | 98–100% | 29,050 → 34,688 | 27.7s → 32.1s | $0.0707 → $0.0827 | 2 / 40 |
+
+Gemini gave the same answers in both runs. The two Sonnet 5 errors are model calls that took longer than the 120s timeout, about 2.5 minutes apart, on `typer-context-parameter` and `typer-annotated`; the other run answered both fully.
+
+- **Gemini finds more.** It now gets `typer-params-to-options`, `typer-annotated`, `ky-retry-decision` and `ky-before-request-hooks` fully, and half of `ky-retry-after`. It loses `typer-find-app` and half of `typer-rich-help`. In each run, it still answers right after its one Tool call in 15 of 20 Runs (2 steps: 15, 3: 2, 4: 2, 5: 1), with 16 searches, 8 reads and 5 defines.
+- **Sonnet 5 is unchanged.** Recall stays in the same range. It answered at step 1 in 10 of 40 Runs before; those now take one more step. Input tokens rise by about a fifth, but mostly from one Run: `ky-before-request-hooks` in run 1 searched until the 8-step limit (158k tokens, 44k before) and missed. Without that Run the rise is about 8%.
+- **Gemini's input tokens double**: a Run makes about 3.5 model calls instead of 2.5, and each Agent step sends the results so far again. It stays under a cent per question.
+
+The change is kept: Gemini's file recall rose and Sonnet 5's didn't drop. The rest of this page is the second recording, from before the change.
+
 ## Summary
 
 Each metric is over the questions that got an answer. Errors are counted separately.
