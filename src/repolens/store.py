@@ -60,6 +60,7 @@ CREATE INDEX IF NOT EXISTS chunks_search_idx ON chunks USING gin (search);
 # Keyword terms are OR-ed so a question matches chunks that contain any of its words.
 # Vectors are compared exactly: a Snapshot has at most a few thousand chunks, and an
 # approximate index would filter by Snapshot after the search and lose results.
+# Tests can come last: they use a question's words more than the code that does the work.
 SEARCH = """
 WITH query AS (
     SELECT replace(
@@ -78,11 +79,21 @@ semantic AS (
 )
 SELECT path, start_line, end_line, symbol, content
 FROM keyword FULL JOIN semantic USING (id) JOIN chunks USING (id)
-ORDER BY coalesce(1.0 / (%(k)s + keyword.rank), 0)
+ORDER BY %(tests_last)s AND path ~ %(test_path)s,
+    coalesce(1.0 / (%(k)s + keyword.rank), 0)
     + coalesce(1.0 / (%(k)s + semantic.rank), 0) DESC, id
 LIMIT %(limit)s
 """
 RRF_K = 60
+
+# Files in a test folder, or named like a test in Python, JavaScript/TypeScript or Go. The
+# same pattern works in Python and in Postgres.
+TEST_PATH = (
+    r"(^|/)(tests?|__tests__)/|(^|/)(test_[^/]*\.py|conftest\.py)$"
+    r"|\.(test|spec)\.[a-z]+$|_test\.go$"
+)
+# The word test or spec in any form, as in `test_login`, but not `latest` or `TestClient`.
+MENTIONS_TESTS = re.compile(r"(?<![A-Za-z])([Tt]est(s|ing|ed)?|[Ss]pecs?)(?![A-Za-z])")
 
 # Chunks named after a symbol come first, then Chunks that define it inside, like a method
 # in a class that wasn't split.
@@ -191,11 +202,16 @@ class ChunkStore:
     def search(
         self, snapshot: Snapshot, text: str, embedding: Sequence[float], limit: int
     ) -> list[Chunk]:
-        """Return the Chunks that best match a question by keywords and by meaning."""
+        """Return the Chunks that best match a question by keywords and by meaning.
+
+        Tests come after the rest of the code, unless the question mentions tests.
+        """
         params = {
             "snapshot": str(snapshot),
             "text": text,
             "embedding": _vector(embedding),
+            "tests_last": not MENTIONS_TESTS.search(text),
+            "test_path": TEST_PATH,
             "k": RRF_K,
             "limit": limit,
         }
