@@ -6,6 +6,7 @@ from typing import Annotated
 import openai
 import psycopg
 import typer
+import uvicorn
 
 from repolens import __version__
 from repolens.code_navigator import MAX_STEPS
@@ -22,6 +23,8 @@ from repolens.rerank import CrossEncoderReranker
 from repolens.run import RunConfig, run
 from repolens.snapshot import RepoRef, Snapshot
 from repolens.store import ChunkStore
+from repolens.web.answers import answer_from_report, save_answer
+from repolens.web.app import create_app
 
 app = typer.Typer(
     help="Ask questions about a GitHub repository and get answers with verifiable citations.",
@@ -75,6 +78,10 @@ def ingest_command(repo: RepoArgument) -> None:
 def ask(
     repo: RepoArgument,
     question: Annotated[str, typer.Argument(help="A question about the code.")],
+    save_example: Annotated[
+        Path | None,
+        typer.Option(help="Also save the answer to this JSON file of web app example answers."),
+    ] = None,
 ) -> None:
     """Answer a question about a repository with a cited Report."""
     repo_ref = _parse_repo(repo)
@@ -91,6 +98,23 @@ def ask(
         with _timeout_as_message(settings.chat_timeout):
             report = run(question, result.snapshot, config)
     typer.echo(str(report))
+    if save_example is not None:
+        save_answer(save_example, answer_from_report(report, llm.name, store))
+        typer.echo(f"Saved the answer to {save_example}", err=True)
+
+
+@app.command()
+def web(
+    host: Annotated[str, typer.Option(help="The address to listen on.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="The port to listen on.")] = 8000,
+) -> None:
+    """Serve the web app: ask about the demo repos in the browser."""
+    settings = Settings()
+    embedder = _embedder(settings)
+    application = create_app(settings, embedder, CrossEncoderReranker())
+    typer.echo(f"repolens web app on http://{host}:{port}", err=True)
+    # One process: the demo limits count Runs in memory.
+    uvicorn.run(application, host=host, port=port)
 
 
 @app.command("eval")

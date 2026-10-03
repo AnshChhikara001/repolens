@@ -22,7 +22,7 @@ from repolens.llm import LLM, ModelCall, Reply
 from repolens.report import Report
 from repolens.report_writer import write_answer
 from repolens.rerank import Reranker
-from repolens.run_log import RunLog
+from repolens.run_log import OnEvent, RunLog
 from repolens.snapshot import Snapshot
 from repolens.store import ChunkStore
 from repolens.tools import Tools
@@ -45,11 +45,16 @@ class RunConfig:
     max_steps: int = MAX_STEPS
 
 
-def run(question: str, snapshot: Snapshot, config: RunConfig) -> Report:
-    """Answer a question about an ingested Snapshot with a Report of verified Findings."""
+def run(
+    question: str, snapshot: Snapshot, config: RunConfig, on_event: OnEvent | None = None
+) -> Report:
+    """Answer a question about an ingested Snapshot with a Report of verified Findings.
+
+    `on_event` gets each Run log event as it is written, to show the Run's progress live.
+    """
     run_id = uuid4()
     started = time.perf_counter()
-    log = RunLog(config.runs_dir / f"{run_id}.jsonl")
+    log = RunLog(config.runs_dir / f"{run_id}.jsonl", on_event)
     log.write("start", run_id=run_id, snapshot=snapshot, question=question, model=config.llm.name)
     llm = _RecordingLLM(config.llm, log)
     lines_read = LinesRead()

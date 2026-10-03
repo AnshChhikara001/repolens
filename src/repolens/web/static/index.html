@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>repolens</title>
+  <meta name="description" content="Ask a question about an open-source repo and get an answer that cites the lines of code it rests on.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f1efe9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1b1917" media="(prefers-color-scheme: dark)">
+  <link rel="preload" href="/static/fonts/STIXTwoText.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/RedHatMono.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#answer">Skip to the answer</a>
+  <header class="masthead">
+    <h1 translate="no">repolens</h1>
+    <p class="lede">Ask about an open-source repo. Every claim cites the lines it rests on.</p>
+  </header>
+
+  <main>
+    <form id="ask" class="ask" novalidate>
+      <fieldset class="repos">
+        <legend>Repo</legend>
+        <div id="repos" class="repo-list"><p class="quiet">Loading the repos…</p></div>
+      </fieldset>
+
+      <label for="question" class="question-label">Question</label>
+      <div class="question-row">
+        <textarea id="question" name="question" rows="2" maxlength="500" required autocomplete="off"
+          placeholder="How does it decide whether to retry a request?"></textarea>
+        <button type="submit" id="submit">Ask</button>
+      </div>
+
+      <details id="own-key" class="own-key">
+        <summary>Use your own Gemini API key</summary>
+        <label for="api-key">Gemini API key</label>
+        <input id="api-key" name="api_key" type="password" autocomplete="off" spellcheck="false">
+        <p class="quiet">Questions on your key skip the demo limits. The key goes with each question you ask and is not stored. Get one free at <a href="https://aistudio.google.com/apikey">Google AI Studio</a>.</p>
+      </details>
+
+      <p id="notice" class="notice" role="alert" hidden></p>
+    </form>
+
+    <section id="examples" class="examples" aria-labelledby="examples-heading" hidden>
+      <h2 id="examples-heading">Example answers</h2>
+      <p class="quiet">Answered earlier by <span id="examples-model"></span>. They show instantly, without a model call.</p>
+      <ul id="example-list"></ul>
+    </section>
+
+    <section id="progress" class="progress" aria-live="polite" hidden>
+      <h2>Looking through the code</h2>
+      <ol id="steps"></ol>
+      <p id="usage" class="quiet"></p>
+    </section>
+
+    <article id="answer" class="answer" tabindex="-1" hidden></article>
+  </main>
+
+  <footer class="colophon">
+    <p>On 29 eval questions across five repos, the agent cites 84% of the files a good answer needs with Gemini 3.1 Flash-Lite, and 93–97% with Claude Sonnet 5. <a href="https://github.com/AnshChhikara001/repolens/blob/main/evals/README.md">How it was measured</a>.</p>
+    <p><a href="https://github.com/AnshChhikara001/repolens">Source on GitHub</a>.</p>
+  </footer>
+</body>
+</html>

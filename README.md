@@ -97,9 +97,20 @@ uv run repolens eval --no-rerank  # search order instead of the reranker
 
 It prints markdown tables like the ones in [`evals/results/`](evals/results/).
 
+### Web app
+
+```sh
+uv run repolens web         # http://127.0.0.1:8000
+```
+
+Pick a demo repo, ask a question, and watch the Code Navigator's steps come in before the answer. Each Citation opens to its code and links to the lines on GitHub at the pinned commit. Every repo has example answers by Claude Sonnet 5 that show without a model call.
+
+The demo repos are the six in [`examples.json`](src/repolens/web/examples.json) that are ingested; `repolens ingest fastapi/typer@a80f6e5` adds one. Live questions use `CHAT_MODEL`, within `DEMO_RUNS_PER_HOUR` per visitor address and `DEMO_RUNS_PER_DAY` in all. Past a limit, the page offers a field for the visitor's own Gemini key.
+
 ## Development
 
 ```sh
+uv run playwright install chromium  # once, for the web page tests
 uv run pytest               # database tests are skipped if Postgres isn't running
 uv run ruff check && uv run ruff format --check
 uv run pyright              # strict mode

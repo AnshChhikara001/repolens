@@ -12,6 +12,7 @@ from repolens.llm import LLMError
 from repolens.report import Citation, Finding
 from repolens.report_writer import ReportDraft
 from repolens.store import ChunkStore
+from repolens.web.answers import load_answers
 
 runner = CliRunner()
 pytestmark = pytest.mark.usefixtures("clean_env")
@@ -73,6 +74,25 @@ def test_ask_writes_a_run_log(store: ChunkStore, fakes: ScriptedLLM, tmp_path: P
 
     assert result.exit_code == 0, result.output
     assert len(list((tmp_path / "runs").glob("*.jsonl"))) == 1
+
+
+def test_ask_can_save_the_answer_as_an_example_for_the_web_app(
+    store: ChunkStore, fakes: ScriptedLLM, tmp_path: Path
+) -> None:
+    fakes.script.extend([NOTHING_NEW, FINDINGS, ReportDraft(answer="Hashed [1][2].")] * 2)
+    examples = tmp_path / "examples.json"
+    command = ["ask", "acme/shop", "How are passwords stored?", "--save-example", str(examples)]
+    runner.invoke(cli.app, command)
+
+    result = runner.invoke(cli.app, command)  # asked again, replaces the first
+
+    assert result.exit_code == 0, result.output
+    [example] = load_answers(examples)
+    assert example.snapshot == f"acme/shop@{SHA}"
+    assert example.answer == "Hashed [1][2]."
+    assert example.model == "scripted"
+    assert example.findings[0].citations[0].code.startswith("def hash_password(")
+    assert f"Saved the answer to {examples}" in result.stderr
 
 
 def test_ask_reuses_an_ingested_snapshot(store: ChunkStore, fakes: ScriptedLLM) -> None:

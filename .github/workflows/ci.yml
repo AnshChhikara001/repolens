@@ -40,6 +40,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked
 
+      - name: Install the browser for the web page tests
+        run: uv run playwright install --with-deps chromium
+
       - name: Lint
         run: uv run ruff check
 
