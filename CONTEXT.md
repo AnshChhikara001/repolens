@@ -61,6 +61,16 @@ _Avoid_: reference, source
 The final answer to a Run, composed only from Findings with valid Citations.
 _Avoid_: response, summary
 
+### Web app
+
+**Visitor**:
+Someone asking questions in the web app. Their Runs on our key are limited per visitor address and for all visitors together; with their own API key they skip the limits.
+_Avoid_: user, client
+
+**Example answer**:
+A Report saved with the code of each Citation, which the web app shows without a model call.
+_Avoid_: showcase run, canned answer
+
 ### Evaluation
 
 **Eval question**:
