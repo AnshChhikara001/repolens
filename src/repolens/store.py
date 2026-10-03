@@ -60,6 +60,9 @@ CREATE INDEX IF NOT EXISTS chunks_search_idx ON chunks USING gin (search);
 # Keyword terms are OR-ed so a question matches chunks that contain any of its words.
 # Vectors are compared exactly: a Snapshot has at most a few thousand chunks, and an
 # approximate index would filter by Snapshot after the search and lose results.
+# Tests can come after all other code: they use a question's words more than the code that
+# does the work. The semantic ranking holds every Chunk, so a test then shows only in a
+# Snapshot with fewer non-test Chunks than `limit`.
 SEARCH = """
 WITH query AS (
     SELECT replace(
@@ -78,11 +81,21 @@ semantic AS (
 )
 SELECT path, start_line, end_line, symbol, content
 FROM keyword FULL JOIN semantic USING (id) JOIN chunks USING (id)
-ORDER BY coalesce(1.0 / (%(k)s + keyword.rank), 0)
+ORDER BY %(tests_last)s AND path ~ %(test_path)s,  -- tests last
+    coalesce(1.0 / (%(k)s + keyword.rank), 0)
     + coalesce(1.0 / (%(k)s + semantic.rank), 0) DESC, id
 LIMIT %(limit)s
 """
 RRF_K = 60
+
+# A Postgres regex for files in a test folder, or named like a test in Python,
+# JavaScript/TypeScript or Go.
+TEST_PATH = (
+    r"(^|/)(tests?|__tests__|specs?)/|(^|/)(test_[^/]*\.py|tests\.py|conftest\.py)$"
+    r"|\.(test|spec)\.[a-z]+$|_test\.(py|go)$"
+)
+# The word test or spec in any form, as in `test_login`, but not `latest` or `TestClient`.
+MENTIONS_TESTS = re.compile(r"(?<![a-z])(test(s|ing|ed)?|specs?)(?![a-z])", re.IGNORECASE)
 
 # Chunks named after a symbol come first, then Chunks that define it inside, like a method
 # in a class that wasn't split.
@@ -191,11 +204,16 @@ class ChunkStore:
     def search(
         self, snapshot: Snapshot, text: str, embedding: Sequence[float], limit: int
     ) -> list[Chunk]:
-        """Return the Chunks that best match a question by keywords and by meaning."""
+        """Return the Chunks that best match a question by keywords and by meaning.
+
+        Tests come after all other code, unless the question mentions tests.
+        """
         params = {
             "snapshot": str(snapshot),
             "text": text,
             "embedding": _vector(embedding),
+            "tests_last": not MENTIONS_TESTS.search(text),
+            "test_path": TEST_PATH,
             "k": RRF_K,
             "limit": limit,
         }
