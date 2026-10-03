@@ -18,9 +18,8 @@ def axis(i: int) -> list[float]:
 HASHING = Chunk("app/auth.py", 6, 7, "hash_password", "return sha256(SALT + password)")
 SESSION = Chunk("web/src/api.ts", 5, 8, "fetchSession", 'await fetch("/api/session")')
 ASSETS = Chunk("app/build/steps.py", 1, 2, "compile_assets", "pass")
-TEST_HASHING = Chunk(
-    "tests/test_auth.py", 1, 2, "test_hash_password", "assert hash_password('pw') != 'pw'"
-)
+CHECK_HASHING = "assert hash_password('pw') != 'pw'"
+TEST_HASHING = Chunk("tests/test_auth.py", 1, 2, "test_hash_password", CHECK_HASHING)
 
 
 def save(store: ChunkStore, snapshot: Snapshot, chunks: dict[Chunk, list[float]]) -> None:
@@ -69,15 +68,18 @@ def test_search_only_looks_in_the_given_snapshot(store: ChunkStore) -> None:
         "tests/test_auth.py",
         "test/auth.ts",
         "app/test_auth.py",
+        "app/auth_test.py",
+        "app/tests.py",
         "app/conftest.py",
         "web/src/__tests__/auth.js",
         "web/src/auth.test.ts",
         "web/src/auth.spec.ts",
+        "spec/auth_spec.rb",
         "pkg/auth/auth_test.go",
     ],
 )
 def test_search_ranks_tests_below_source(store: ChunkStore, path: str) -> None:
-    test = Chunk(path, 1, 2, "<module>", "assert hash_password('pw') != 'pw'")
+    test = Chunk(path, 1, 2, "<module>", CHECK_HASHING)
     save(store, SNAPSHOT, {test: axis(0), HASHING: axis(1), SESSION: axis(2)})
 
     # The test matches the question best, by keywords and by meaning.
@@ -88,26 +90,26 @@ def test_search_ranks_tests_below_source(store: ChunkStore, path: str) -> None:
 
 @pytest.mark.parametrize("path", ["app/testing.py", "app/latest.py", "app/inspect.py"])
 def test_search_ranks_source_named_like_tests_as_source(store: ChunkStore, path: str) -> None:
-    helper = Chunk(path, 1, 2, "<module>", "assert hash_password('pw') != 'pw'")
+    helper = Chunk(path, 1, 2, "<module>", CHECK_HASHING)
     save(store, SNAPSHOT, {helper: axis(0), HASHING: axis(1), SESSION: axis(2)})
 
     results = store.search(SNAPSHOT, "How is hash_password checked?", axis(0), limit=3)
 
-    assert results[0] == helper
+    assert results == [helper, HASHING, SESSION]
 
 
 @pytest.mark.parametrize(
     "query",
-    ["test_hash_password", "How is hashing tested?", "the tests for hash_password", "Test hashing"],
+    ["test_hash_password", "How is hashing tested?", "the TESTS for hashing", "auth spec"],
 )
-def test_a_search_that_mentions_tests_ranks_them_like_source(store: ChunkStore, query: str) -> None:
+def test_search_that_mentions_tests_ranks_them_like_source(store: ChunkStore, query: str) -> None:
     save(store, SNAPSHOT, {TEST_HASHING: axis(0), HASHING: axis(1), SESSION: axis(2)})
 
     assert store.search(SNAPSHOT, query, axis(0), limit=1) == [TEST_HASHING]
 
 
 @pytest.mark.parametrize("query", ["the latest hash", "a specific hash", "TestClient hashing"])
-def test_words_containing_test_or_spec_dont_count_as_mentioning_tests(
+def test_search_doesnt_count_words_containing_test_or_spec_as_mentioning_tests(
     store: ChunkStore, query: str
 ) -> None:
     save(store, SNAPSHOT, {TEST_HASHING: axis(0), HASHING: axis(1)})
