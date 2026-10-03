@@ -66,7 +66,7 @@ The dataset is right: `Ky.#runBeforeRequestHooks` (source/core/Ky.ts:1003) runs 
 - ky's tests are long files (`test/hooks.ts` has about 6,500 lines, in 150-line Chunks) that use every option by name, and `source/types/*.ts` documents every option in JSDoc. For both questions, hybrid search fills all 24 candidates with tests and type declarations. `#runBeforeRequestHooks` isn't a candidate at all, and `Ky.constructor` is 18th of 24 after reranking.
 - A short query finds the code: `run beforeRequest hooks` ranks `Ky.#runBeforeRequestHooks` second. Sonnet 5 got there once. On `ky-json-body`, every follow-up search it made returned more tests, until the Run's 1,500-line limit.
 
-The fix belongs in retrieval, e.g. ranking test files below source files, or a Tool that lists a directory. It's left for a later change.
+The fix belongs in retrieval, e.g. ranking test files below source files, or a Tool that lists a directory. Tests now come after source in a search, which fixed `ky-before-request-hooks`; `ky-json-body` still loses to the type declarations ([tests after source](tests-below-source.md)).
 
 ## How the agent used its steps
 

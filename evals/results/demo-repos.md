@@ -6,6 +6,8 @@ Recorded 2026-10-02 with `repolens eval`, on the code at commit `3abb728` (the R
 - [`encode/httpx@b5addb6`](https://github.com/encode/httpx/tree/b5addb64f0161ff6bfe94c124ef76f6a1fba5254) (Python HTTP client)
 - [`colinhacks/zod@004d800`](https://github.com/colinhacks/zod/tree/004d800c9e3cd4c79930f55aa4ad080225b22efd) (TypeScript schema validation; the repo ships Zod 3 and Zod 4, so the questions name Zod 4)
 
+Newer totals over all 29, after search started ranking tests after source, are in [tests after source](tests-below-source.md).
+
 Same setups as [agent vs one-shot](agent.md): **agent** (`--steps 8`) and **one-shot** (`--steps 1`), reranking on, two runs each. The 20 typer and ky questions weren't run again: their agent results are from the same code, on the same day, and one-shot Runs didn't change with it.
 
 ## Summary
