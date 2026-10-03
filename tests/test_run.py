@@ -585,6 +585,18 @@ def test_each_run_writes_a_log_of_its_steps_and_model_calls(
     assert end["duration_s"] == report.duration_s
 
 
+def test_a_caller_sees_each_log_event_as_it_is_written(
+    ingested: ChunkStore, runs_dir: Path
+) -> None:
+    llm = ScriptedLLM(NOTHING_NEW, answer(HASHED), ReportDraft(answer="Hashed [1]."))
+    seen: list[dict[str, object]] = []
+
+    report = run(QUESTION, SNAPSHOT, config(ingested, llm, runs_dir), on_event=seen.append)
+
+    assert seen == read_log(runs_dir / f"{report.run_id}.jsonl")
+    assert [event["event"] for event in seen][-1] == "end"
+
+
 def test_a_failed_run_logs_its_calls_and_the_error(ingested: ChunkStore, runs_dir: Path) -> None:
     llm = ScriptedLLM(NOTHING_NEW, answer(HASHED))  # no answer to write
 
