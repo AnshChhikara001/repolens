@@ -2,11 +2,12 @@
 
 Demo repos are those with example answers that are ingested under the current index version.
 A question is a Run on our chat model within the demo limits, or on the visitor's own key. The
-Run streams its run log events as server-sent events, then the Report with its cited code.
+Run streams its Run log events as server-sent events, then the Report with its cited code.
 Runs need one process, for the demo limits' counts.
 """
 
 import json
+import logging
 import queue
 import threading
 from collections.abc import Iterator
@@ -33,8 +34,10 @@ HERE = Path(__file__).parent
 EXAMPLES = HERE / "examples.json"
 STATIC = HERE / "static"
 MAX_QUESTION_CHARS = 500
-# The run log events the page shows while a Run works.
+# The Run log events the page shows while a Run works.
 PROGRESS_EVENTS = frozenset({"tool", "step", "call"})
+
+logger = logging.getLogger(__name__)
 
 
 class DemoRepo(BaseModel):
@@ -142,9 +145,10 @@ def _address(request: Request) -> str:
 
 
 def _message(exc: Exception, settings: Settings) -> str:
-    """What went wrong, for the page. The run log has the details."""
+    """What went wrong, for the page. The Run log or the server log has the details."""
     if isinstance(exc, TimeoutError):
         return f"The model took longer than {settings.chat_timeout:g}s to answer. Try again."
     if isinstance(exc, LLMError):
         return f"The model failed: {exc}"
+    logger.error("A web app question failed", exc_info=exc)
     return "Something went wrong while answering. Try again."

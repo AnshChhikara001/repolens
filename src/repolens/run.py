@@ -50,7 +50,7 @@ def run(
 ) -> Report:
     """Answer a question about an ingested Snapshot with a Report of verified Findings.
 
-    `on_event` gets each run log event as it is written, to show the Run's progress live.
+    `on_event` gets each Run log event as it is written, to show the Run's progress live.
     """
     run_id = uuid4()
     started = time.perf_counter()

@@ -103,7 +103,7 @@ It prints markdown tables like the ones in [`evals/results/`](evals/results/).
 uv run repolens web         # http://127.0.0.1:8000
 ```
 
-Pick a demo repo, ask a question, and watch the Code Navigator's steps come in before the answer. Each Citation opens to its code and links to the lines on GitHub at the pinned commit. Every repo has saved answers by Claude Sonnet 5 that show without a model call.
+Pick a demo repo, ask a question, and watch the Code Navigator's steps come in before the answer. Each Citation opens to its code and links to the lines on GitHub at the pinned commit. Every repo has example answers by Claude Sonnet 5 that show without a model call.
 
 The demo repos are the six in [`examples.json`](src/repolens/web/examples.json) that are ingested; `repolens ingest fastapi/typer@a80f6e5` adds one. Live questions use `CHAT_MODEL`, within `DEMO_RUNS_PER_HOUR` per visitor address and `DEMO_RUNS_PER_DAY` in all. Past a limit, the page offers a field for the visitor's own Gemini key.
 

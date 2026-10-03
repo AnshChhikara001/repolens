@@ -39,7 +39,7 @@ function say(message) {
   notice.hidden = !message;
 }
 
-// Repos and their saved answers
+// Repos and their example answers
 
 async function loadRepos() {
   const list = $("repos");
@@ -109,7 +109,7 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const repo = selected();
   const text = question.value.trim();
-  if (!repo) return;
+  if (!repo || submit.disabled) return;
   if (!text) {
     say("Type a question about the code first.");
     question.focus();
@@ -137,7 +137,11 @@ form.addEventListener("submit", async (event) => {
       return;
     }
     answer.hidden = true;
-    await follow(response.body, controller.signal);
+    const ended = await follow(response.body, controller.signal);
+    if (!ended && !controller.signal.aborted) {
+      progress.hidden = true;
+      say("The answer stopped before it was done. Try again.");
+    }
   } catch (error) {
     if (error.name !== "AbortError") {
       progress.hidden = true;
@@ -166,17 +170,21 @@ async function refused(response) {
     $("own-key").open = true;
     apiKey.focus();
   } else if (response.status === 422) {
-    say("Questions can be up to 500 characters long.");
+    say(question.value.trim().length > 500
+      ? "Questions can be up to 500 characters long."
+      : "The question couldn't be sent. Check it and the API key, then try again.");
   } else {
     say(detail || `The server refused the question (${response.status}).`);
   }
 }
 
-// Reads the server-sent events of a Run: its steps, then the answer or an error.
+// Reads the server-sent events of a Run: its steps, then the answer or an error. Returns
+// whether one of those last two came.
 async function follow(body, signal) {
   const reader = body.pipeThrough(new TextDecoderStream()).getReader();
   const totals = { calls: 0, tokens: 0 };
   let buffer = "";
+  let ended = false;
   while (!signal.aborted) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -187,9 +195,13 @@ async function follow(body, signal) {
       buffer = buffer.slice(end + 2);
       const name = message.match(/^event: (.*)$/m)?.[1];
       const data = message.match(/^data: (.*)$/m)?.[1];
-      if (name && data) handle(name, JSON.parse(data), totals);
+      if (name && data) {
+        handle(name, JSON.parse(data), totals);
+        ended ||= name === "report" || name === "error";
+      }
     }
   }
+  return ended;
 }
 
 function handle(name, data, totals) {
@@ -231,7 +243,7 @@ function renderAnswer(data, { saved }) {
       ),
     ),
   );
-  const source = saved ? `Saved answer by ${data.model}` : `Answered just now by ${data.model}`;
+  const source = saved ? `Example answer by ${data.model}` : `Answered just now by ${data.model}`;
   answer.replaceChildren(...present([
     el("h2", { class: "asked" }, data.question),
     el("p", { class: "byline" }, `${source}, about ${shortSnapshot(data.snapshot)}.`),

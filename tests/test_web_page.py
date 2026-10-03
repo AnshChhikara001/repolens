@@ -95,7 +95,7 @@ def site(store: ChunkStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     thread.join()
 
 
-def test_a_saved_answer_shows_on_load_and_its_citation_opens_to_the_code(
+def test_an_example_answer_shows_on_load_and_its_citation_opens_to_the_code(
     site: str, page: Page
 ) -> None:
     page.goto(site)
@@ -103,7 +103,7 @@ def test_a_saved_answer_shows_on_load_and_its_citation_opens_to_the_code(
     answer = page.locator("#answer")
     expect(page.get_by_role("radio", name="acme/shop")).to_be_checked()
     expect(answer.get_by_role("heading")).to_have_text("Where is the salt?")
-    expect(answer).to_contain_text("Saved answer by Claude Sonnet 5, about acme/shop@3f78685.")
+    expect(answer).to_contain_text("Example answer by Claude Sonnet 5, about acme/shop@3f78685.")
     page.get_by_role("link", name="Finding 1").click()
     expect(answer.locator("pre")).to_be_visible()
     expect(answer.locator("pre .line")).to_have_text('3SALT = "pepper"')  # line number, line

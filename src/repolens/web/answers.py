@@ -5,6 +5,7 @@ database.
 """
 
 from pathlib import Path
+from urllib.parse import quote
 
 from pydantic import BaseModel, TypeAdapter
 
@@ -47,7 +48,7 @@ class Answer(BaseModel):
     duration_s: float
 
 
-Answers = TypeAdapter(list[Answer])
+_ANSWERS = TypeAdapter(list[Answer])
 
 
 def answer_from_report(report: Report, model: str, store: ChunkStore) -> Answer:
@@ -67,7 +68,7 @@ def answer_from_report(report: Report, model: str, store: ChunkStore) -> Answer:
             )
             url = (
                 f"https://github.com/{snapshot.owner}/{snapshot.name}/blob/{snapshot.sha}"
-                f"/{citation.path}#L{citation.start_line}-L{citation.end_line}"
+                f"/{quote(citation.path)}#L{citation.start_line}-L{citation.end_line}"
             )
             cited.append(CitedCode(**citation.model_dump(), url=url, code=code))
         findings.append(CitedFinding(claim=finding.claim, citations=cited))
@@ -87,7 +88,7 @@ def answer_from_report(report: Report, model: str, store: ChunkStore) -> Answer:
 
 
 def load_answers(path: Path) -> list[Answer]:
-    return Answers.validate_json(path.read_bytes()) if path.exists() else []
+    return _ANSWERS.validate_json(path.read_bytes()) if path.exists() else []
 
 
 def save_answer(path: Path, answer: Answer) -> None:
@@ -98,13 +99,13 @@ def save_answer(path: Path, answer: Answer) -> None:
         if (saved.snapshot, saved.question) != (answer.snapshot, answer.question)
     ]
     answers.append(answer)
-    path.write_bytes(Answers.dump_json(answers, indent=2) + b"\n")
+    path.write_bytes(_ANSWERS.dump_json(answers, indent=2) + b"\n")
 
 
 def _lines(store: ChunkStore, report: Report, path: str) -> dict[int, str]:
-    """A file's lines by number, from its Chunks."""
+    """A file's lines by number, from its Chunks, numbered like the Tools number them."""
     lines: dict[int, str] = {}
     for chunk in store.chunks(report.snapshot, [path]):
-        for number, line in enumerate(chunk.text.splitlines(), chunk.start_line):
+        for number, line in enumerate(chunk.text.split("\n"), chunk.start_line):
             lines[number] = line
     return lines
