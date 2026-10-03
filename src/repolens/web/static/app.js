@@ -60,7 +60,8 @@ async function loadRepos() {
     ...repos.map((repo, i) =>
       el("label", { class: "repo", title: `Pinned at commit ${repo.sha}` },
         el("input", { type: "radio", name: "repo", value: repo.snapshot, checked: i === 0 }),
-        el("span", { translate: false }, repo.repo),
+        el("span", { class: "repo-name", translate: false }, repo.repo),
+        el("span", { class: "repo-pin", translate: false }, shortSnapshot(repo.snapshot).slice(repo.repo.length)),
       ),
     ),
   );

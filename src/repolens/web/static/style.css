@@ -1,19 +1,48 @@
-/* Cool paper, slate ink, and one marker colour for evidence: citation numbers and cited lines. */
+/* Warm paper and ink, with one oxblood accent spent on real state: the selected
+   repo, the citation marker and its open state, links, and the focus ring. */
+
+@font-face {
+  font-family: "STIX Two Text";
+  src: url("/static/fonts/STIXTwoText.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "STIX Two Text";
+  src: url("/static/fonts/STIXTwoText-Italic.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Red Hat Mono";
+  src: url("/static/fonts/RedHatMono.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
-  --paper: #eef2f6;
-  --sheet: #f8fafc;
-  --ink: #1b2430;
-  --muted: #566170;
-  --rule: #c9d2dc;
-  --link: #2346d8;
-  --marker: #ffe45c;
-  --marker-ink: #1b2430;
-  --code-bg: #f8fafc;
-  --focus: #2346d8;
+  --paper: #f1efe9;
+  --sheet: #e8e4da;
+  --ink: #1b1917;
+  --muted: #6b6558;
+  --rule: #d6d0c2;
+  --link: #7a1a1a;
+  --accent: #8a1f1f;
+  /* Button chrome only: held fixed across themes (not re-themed in the dark-mode
+     blocks below) because the lighter dark-mode --accent is too mid-toned for
+     either light or dark text to clear 4.5:1 against it as a fill color. */
+  --accent-strong: #76170f;
+  --on-accent-strong: #f6f2e9;
+  --code-bg: #e8e4da;
+  --focus: #8a1f1f;
 
-  --serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
-  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --serif: "STIX Two Text", "Iowan Old Style", Georgia, serif;
+  --mono: "Red Hat Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   /* A modular scale of 1.2 on a 1.0625rem body. */
   --step-0: 1.0625rem;
@@ -29,30 +58,28 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #141a22;
-    --sheet: #1b232d;
-    --ink: #e4e9ef;
-    --muted: #9aa5b3;
-    --rule: #33404f;
-    --link: #8fa8ff;
-    --marker: #f2d64b;
-    --marker-ink: #141a22;
-    --code-bg: #0f141a;
-    --focus: #8fa8ff;
+    --paper: #1b1917;
+    --sheet: #26231f;
+    --ink: #ece7dc;
+    --muted: #a39b89;
+    --rule: #3a362f;
+    --link: #e2a0a0;
+    --accent: #d26a6a;
+    --code-bg: #15130f;
+    --focus: #d26a6a;
   }
 }
 
 :root[data-theme="dark"] {
-  --paper: #141a22;
-  --sheet: #1b232d;
-  --ink: #e4e9ef;
-  --muted: #9aa5b3;
-  --rule: #33404f;
-  --link: #8fa8ff;
-  --marker: #f2d64b;
-  --marker-ink: #141a22;
-  --code-bg: #0f141a;
-  --focus: #8fa8ff;
+  --paper: #1b1917;
+  --sheet: #26231f;
+  --ink: #ece7dc;
+  --muted: #a39b89;
+  --rule: #3a362f;
+  --link: #e2a0a0;
+  --accent: #d26a6a;
+  --code-bg: #15130f;
+  --focus: #d26a6a;
 }
 
 *,
@@ -115,7 +142,7 @@ pre {
 /* Masthead */
 
 .masthead {
-  padding: 3.5rem 0 1.5rem;
+  padding: 3rem 0 1.5rem;
 }
 
 h1 {
@@ -127,10 +154,11 @@ h1 {
 }
 
 .lede {
-  margin: 0.75rem 0 0;
-  font-size: var(--step-1);
-  line-height: 1.45;
-  max-width: 36rem;
+  margin: 0.6rem 0 0;
+  color: var(--muted);
+  font-size: var(--step-0);
+  line-height: 1.5;
+  max-width: 34rem;
 }
 
 h1,
@@ -148,7 +176,7 @@ h2 {
 /* The question form */
 
 .ask {
-  margin-top: 1rem;
+  margin-top: 1.5rem;
 }
 
 .repos {
@@ -166,13 +194,20 @@ h2 {
 
 .repo-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+  flex-direction: column;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--rule);
 }
 
 .repo {
   position: relative;
-  display: inline-flex;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.5rem 0.1rem 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--rule);
+  border-left: 2px solid transparent;
+  cursor: pointer;
 }
 
 .repo input {
@@ -183,26 +218,34 @@ h2 {
   cursor: pointer;
 }
 
-.repo span {
-  padding: 0.3rem 0.7rem;
-  border: 1px solid var(--rule);
-  border-radius: 999px;
+.repo-name {
+  font-size: var(--step-0);
+}
+
+.repo-pin {
+  color: var(--muted);
   font-family: var(--mono);
   font-size: var(--code);
-  background: var(--sheet);
 }
 
-.repo input:hover:not(:checked) + span {
-  border-color: var(--muted);
+.repo:has(input:hover:not(:checked)) {
+  border-left-color: var(--rule);
 }
 
-.repo input:checked + span {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--paper);
+.repo:has(input:hover:not(:checked)) .repo-name {
+  color: var(--accent);
 }
 
-.repo input:focus-visible + span {
+.repo:has(input:checked) {
+  border-left-color: var(--accent);
+}
+
+.repo input:checked ~ .repo-name {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.repo input:focus-visible ~ .repo-name {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -218,7 +261,7 @@ input[type="password"] {
   width: 100%;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--rule);
-  border-radius: 6px;
+  border-radius: 3px;
   background: var(--sheet);
   color: var(--ink);
   font: inherit;
@@ -239,6 +282,7 @@ button,
 summary,
 .repo input {
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button {
@@ -250,14 +294,14 @@ button {
   flex: none;
   padding: 0 1.4rem;
   border: 0;
-  border-radius: 6px;
-  background: var(--ink);
-  color: var(--paper);
+  border-radius: 3px;
+  background: var(--accent-strong);
+  color: var(--on-accent-strong);
   font-weight: 600;
 }
 
 #submit:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ink) 85%, var(--link));
+  background: color-mix(in srgb, var(--accent-strong) 85%, black);
 }
 
 #submit:disabled {
@@ -289,7 +333,8 @@ button {
 .notice {
   margin: 1rem 0 0;
   padding: 0.6rem 0.8rem;
-  border-left: 3px solid var(--ink);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
   background: var(--sheet);
 }
 
@@ -342,13 +387,19 @@ button {
 
 .progress ol {
   margin: 0;
-  padding-left: 1.4rem;
+  padding-left: 1.6rem;
+  color: var(--muted);
+  font-family: var(--mono);
   font-size: var(--small);
 }
 
 .progress li {
-  padding: 0.15rem 0;
+  padding: 0.2rem 0;
   overflow-wrap: anywhere;
+}
+
+.progress li::marker {
+  color: var(--accent);
 }
 
 /* The answer */
@@ -384,25 +435,26 @@ button {
 }
 
 .marker {
-  display: inline-block;
-  min-width: 1.35em;
-  margin: 0 0.1em;
-  padding: 0 0.3em;
-  border-radius: 3px;
-  background: var(--marker);
-  color: var(--marker-ink);
   font-family: var(--mono);
-  font-size: 0.7em;
+  font-size: 0.72em;
   font-weight: 600;
-  line-height: 1.5;
-  text-align: center;
+  color: var(--accent);
+  vertical-align: super;
+  line-height: 0;
   text-decoration: none;
-  vertical-align: 0.25em;
+  padding: 0 0.05em;
+}
+
+.marker:hover,
+.marker:focus-visible {
+  text-decoration: underline;
+  text-decoration-thickness: from-font;
 }
 
 .findings {
   margin: 0 0 1.5rem;
   padding-left: 1.6rem;
+  font-size: var(--small);
 }
 
 .finding {
@@ -411,6 +463,7 @@ button {
 }
 
 .finding::marker {
+  color: var(--accent);
   font-family: var(--mono);
   font-size: var(--code);
   font-weight: 600;
@@ -418,6 +471,7 @@ button {
 
 .claim {
   margin: 0 0 0.35rem;
+  font-size: var(--step-0);
 }
 
 .citation {
@@ -429,6 +483,14 @@ button {
   width: fit-content;
   max-width: 100%;
   overflow-wrap: anywhere;
+}
+
+.citation summary::marker {
+  color: var(--accent);
+}
+
+.citation summary:hover .path {
+  color: var(--accent);
 }
 
 .path {
@@ -446,8 +508,7 @@ button {
   max-height: 24rem;
   overflow: auto;
   border: 1px solid var(--rule);
-  border-left: 4px solid var(--marker);
-  border-radius: 4px;
+  border-radius: 2px;
   background: var(--code-bg);
   font-size: var(--code);
   line-height: 1.55;
@@ -514,7 +575,7 @@ button {
 .prose code,
 .claim code {
   padding: 0.05em 0.15em;
-  border-radius: 3px;
+  border-radius: 2px;
   background: var(--sheet);
   font-size: 0.8em;
   overflow-wrap: anywhere;
