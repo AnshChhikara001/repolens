@@ -2,7 +2,8 @@
 
 The Code Navigator searches and reads the code until it can answer with cited Findings, the
 citation verifier drops those that cite lines the model wasn't shown (ADR-0007), and the Report
-Writer turns the rest into a Report. Every model call is counted in the Report and written to
+Writer turns the rest into a Report. Secrets are redacted from the Report, as from the code the
+model was shown (ADR-0015). Every model call is counted in the Report and written to
 the run log, with each Agent step and Tool result, the rejected Citations and why a failed Run
 failed.
 """
@@ -17,9 +18,10 @@ from pydantic import BaseModel
 from repolens.citations import verify
 from repolens.code_navigator import MAX_STEPS, find_code
 from repolens.embedding import Embedder
+from repolens.guardrails import redact_secrets
 from repolens.lines_read import LinesRead
 from repolens.llm import LLM, ModelCall, Reply
-from repolens.report import Report
+from repolens.report import Finding, Report
 from repolens.report_writer import write_answer
 from repolens.rerank import Reranker
 from repolens.run_log import OnEvent, RunLog
@@ -62,8 +64,9 @@ def run(
         tools = Tools(snapshot, config.embedder, config.store, config.reranker, lines_read)
         findings = find_code(question, llm, tools, log, config.max_steps)
         findings, rejected = verify(findings, lines_read)
+        findings = [Finding(claim=redact_secrets(f.claim), citations=f.citations) for f in findings]
         if findings:
-            answer = write_answer(question, findings, llm)
+            answer = redact_secrets(write_answer(question, findings, llm))
         else:
             answer = NOT_FOUND.format(snapshot=snapshot)
     except BaseException as exc:
@@ -74,10 +77,21 @@ def run(
         "end",
         findings=len(findings),
         rejected=[f"{c} {c.symbol}" if c.symbol else str(c) for c in rejected],
+        quarantined=tools.quarantined,
         answer=answer,
         duration_s=duration_s,
     )
-    return Report(run_id, question, snapshot, answer, findings, rejected, llm.calls, duration_s)
+    return Report(
+        run_id=run_id,
+        question=question,
+        snapshot=snapshot,
+        answer=answer,
+        findings=findings,
+        rejected=rejected,
+        quarantined=tools.quarantined,
+        calls=llm.calls,
+        duration_s=duration_s,
+    )
 
 
 class _RecordingLLM:

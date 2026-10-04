@@ -49,6 +49,7 @@ EXAMPLE: dict[str, Any] = {
     ],
     "model": "Claude Sonnet 5",
     "rejected": 0,
+    "quarantined": ["app/auth.py:20-30 backdoor"],
     "calls": 3,
     "input_tokens": 30_000,
     "output_tokens": 900,
@@ -104,6 +105,9 @@ def test_an_example_answer_shows_on_load_and_its_citation_opens_to_the_code(
     expect(page.get_by_role("radio", name="acme/shop")).to_be_checked()
     expect(answer.get_by_role("heading")).to_have_text("Where is the salt?")
     expect(answer).to_contain_text("Example answer by Claude Sonnet 5, about acme/shop@3f78685.")
+    expect(answer).to_contain_text(
+        "Hidden from the model because it looks like a prompt injection: app/auth.py:20-30 backdoor"
+    )
     page.get_by_role("link", name="Finding 1").click()
     expect(answer.locator("pre")).to_be_visible()
     expect(answer.locator("pre .line")).to_have_text('3SALT = "pepper"')  # line number, line
