@@ -129,10 +129,10 @@ uv run pyright              # strict mode
 - [x] **M1** End-to-end slice: ingest a repo snapshot, code Q&A with citations (CLI)
 - [x] **M2** Agentic Q&A, measured: one agent with search, read and define Tools, verified citations, a pinned eval
 - [ ] **M3** Showcase and safety
-  - [x] A web app that shows the agent's steps and opens each citation to its code
+  - [x] A web app that shows the Code Navigator's steps and opens each Citation to its code
   - [ ] A hosted demo ([#39](https://github.com/AnshChhikara001/repolens/issues/39))
   - [ ] Guardrails: prompt-injection scan and secret redaction ([#36](https://github.com/AnshChhikara001/repolens/issues/36))
-  - [ ] Ask about your own repo with your own key ([#43](https://github.com/AnshChhikara001/repolens/issues/43))
+  - [ ] Ingest your own repo with your own key ([#43](https://github.com/AnshChhikara001/repolens/issues/43))
 
 ## License
 
