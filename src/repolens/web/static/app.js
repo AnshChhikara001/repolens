@@ -254,6 +254,12 @@ function renderAnswer(data, { saved }) {
     data.rejected
       ? el("p", { class: "quiet" }, `The verifier dropped ${plural(data.rejected, "citation")} that pointed at lines the model was never shown.`)
       : null,
+    data.quarantined?.length
+      ? el("p", { class: "quiet" }, data.quarantined.length === 1
+          ? "Hidden from the model because it looks like a prompt injection: "
+          : "Hidden from the model because they look like prompt injections: ",
+          ...data.quarantined.flatMap((chunk, i) => [i ? ", " : "", el("code", { translate: false }, chunk)]))
+      : null,
     el("p", { class: "quiet terminal" }, "Ask the same in a terminal: ",
       el("code", { translate: false }, `repolens ask ${shortSnapshot(data.snapshot)} ${shellQuote(data.question)}`)),
   ]));

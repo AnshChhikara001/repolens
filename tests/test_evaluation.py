@@ -47,6 +47,7 @@ def report(
         answer="An answer [1].",
         findings=findings,
         rejected=rejected or [],
+        quarantined=[],
         calls=[call(), call()] if calls is None else calls,
         duration_s=duration_s,
     )

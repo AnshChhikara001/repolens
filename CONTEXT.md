@@ -26,7 +26,7 @@ _Avoid_: action, plugin
 The last step of a Run. It writes the answer from the verified Findings only.
 
 **Run log**:
-The JSON Lines file a Run writes: its start, every model call with its tokens and latency, every Agent step and Tool result, and its end (with the rejected Citations) or error.
+The JSON Lines file a Run writes: its start, every model call with its tokens and latency, every Agent step and Tool result, and its end (with the rejected Citations and Quarantined chunks) or error.
 _Avoid_: trace, ledger
 
 ### Evidence
@@ -45,6 +45,10 @@ What a Snapshot's stored Chunks depend on: the chunker version and the embedding
 **Excerpt**:
 Lines of one Chunk that a Tool shows the model.
 _Avoid_: snippet, hit
+
+**Quarantined chunk**:
+A Chunk with a phrase that tells a model what to do, like "ignore all previous instructions". The Tools name it but never show its lines, so no Citation can point at it.
+_Avoid_: flagged chunk, blocked chunk
 
 **Lines read**:
 The lines of each file the model was shown during a Run, however they were fetched. Citations may point only at these lines.

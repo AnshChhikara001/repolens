@@ -9,6 +9,7 @@ from urllib.parse import quote
 
 from pydantic import BaseModel, TypeAdapter
 
+from repolens.guardrails import redact_secrets
 from repolens.report import Report
 from repolens.store import ChunkStore
 
@@ -42,6 +43,8 @@ class Answer(BaseModel):
     model: str
     """The display name of the model that wrote the answer."""
     rejected: int
+    quarantined: list[str] = []
+    """The Quarantined chunks the model wasn't shown."""
     calls: int
     input_tokens: int
     output_tokens: int
@@ -80,6 +83,7 @@ def answer_from_report(report: Report, model: str, store: ChunkStore) -> Answer:
         findings=findings,
         model=MODEL_NAMES.get(model_id, model_id),
         rejected=len(report.rejected),
+        quarantined=report.quarantined,
         calls=len(report.calls),
         input_tokens=sum(call.input_tokens for call in report.calls),
         output_tokens=sum(call.output_tokens for call in report.calls),
@@ -103,9 +107,12 @@ def save_answer(path: Path, answer: Answer) -> None:
 
 
 def _lines(store: ChunkStore, report: Report, path: str) -> dict[int, str]:
-    """A file's lines by number, from its Chunks, numbered like the Tools number them."""
+    """A file's lines by number, from its Chunks, numbered like the Tools number them.
+
+    Secrets are redacted in each whole Chunk, as the Tools redact them.
+    """
     lines: dict[int, str] = {}
     for chunk in store.chunks(report.snapshot, [path]):
-        for number, line in enumerate(chunk.text.split("\n"), chunk.start_line):
+        for number, line in enumerate(redact_secrets(chunk.text).split("\n"), chunk.start_line):
             lines[number] = line
     return lines

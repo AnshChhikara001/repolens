@@ -6,13 +6,18 @@ Excerpts the model has already seen are listed instead of shown again, and a Too
 whole Run show at most a fixed number of lines, so the prompt stays bounded. The hits of a
 search or a definition lookup share their result's lines, so each shows at least its first
 lines; the model reads the rest with `read_lines`.
+
+Repository content is untrusted (ADR-0015). A Chunk that looks like a prompt injection is a
+Quarantined chunk: the Tools name it but never show its lines, so the model can't follow it or
+cite it. Secrets in the Chunks they show are redacted first.
 """
 
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from repolens.chunking import Chunk
 from repolens.embedding import Embedder
+from repolens.guardrails import looks_like_injection, redact_secrets
 from repolens.lines_read import LinesRead
 from repolens.rerank import Reranker, rerank
 from repolens.snapshot import Snapshot
@@ -29,14 +34,18 @@ MAX_RUN_LINES = 1_500
 
 @dataclass(frozen=True)
 class ToolResult:
-    """What a Tool shows the model, and the excerpts in it."""
+    """What a Tool shows the model, the excerpts in it and the Quarantined chunks it hid."""
 
     text: str
     shown: list[Chunk]
+    quarantined: list[Chunk] = field(default_factory=list[Chunk])
 
 
 class Tools:
-    """The Tools of one Run. They add every excerpt they show to `lines_read`."""
+    """The Tools of one Run. They add every excerpt they show to `lines_read`.
+
+    `quarantined` labels each Quarantined chunk they hid, in the order they first hid it.
+    """
 
     def __init__(
         self,
@@ -52,6 +61,7 @@ class Tools:
         self._reranker = reranker
         self._lines_read = lines_read
         self._lines_shown = 0
+        self.quarantined: list[str] = []
 
     def search_code(self, query: str) -> ToolResult:
         """The code that best matches the query by keywords and by meaning."""
@@ -61,11 +71,10 @@ class Tools:
         else:
             candidates = self._store.search(self._snapshot, query, embedding, CANDIDATES)
             chunks = rerank(query, candidates, self._reranker, TOP_K)
-        return (
-            self._show(chunks, share=True)
-            if chunks
-            else ToolResult(f"No code matches {query!r}.", [])
-        )
+        if not chunks:
+            return ToolResult(f"No code matches {query!r}.", [])
+        clean, quarantined = _screen(chunks)
+        return self._show(clean, quarantined, share=True)
 
     def read_lines(self, path: str, start_line: int, end_line: int) -> ToolResult:
         """Lines of one file. Without a valid end line, as many lines as one result may show."""
@@ -75,34 +84,41 @@ class Tools:
         start_line = max(start_line, 1)
         if end_line < start_line:
             end_line = start_line + MAX_RESULT_LINES - 1
-        excerpts = [
-            _cut(chunk, max(start_line, chunk.start_line), min(end_line, chunk.end_line))
+        overlapping = [
+            chunk
             for chunk in chunks
             if chunk.start_line <= end_line and start_line <= chunk.end_line
         ]
-        if not excerpts:
+        if not overlapping:
             return ToolResult(
                 f"{path} has no code in lines {start_line}-{end_line}."
                 f" Its code is in lines {chunks[0].start_line}-{chunks[-1].end_line}.",
                 [],
             )
-        return self._show(excerpts)
+        clean, quarantined = _screen(overlapping)
+        excerpts = [
+            _cut(chunk, max(start_line, chunk.start_line), min(end_line, chunk.end_line))
+            for chunk in clean
+        ]
+        return self._show(excerpts, quarantined)
 
     def find_definition(self, name: str) -> ToolResult:
         """Where a function, class or method is defined, e.g. `login` or `LoginService.login`."""
         name = name.strip().removesuffix("()")
         chunks = self._store.definitions(self._snapshot, name, MAX_DEFINITIONS)
-        return (
-            self._show(chunks, share=True)
-            if chunks
-            else ToolResult(f"No definition of {name!r}.", [])
-        )
+        if not chunks:
+            return ToolResult(f"No definition of {name!r}.", [])
+        clean, quarantined = _screen(chunks)
+        return self._show(clean, quarantined, share=True)
 
-    def _show(self, chunks: Sequence[Chunk], share: bool = False) -> ToolResult:
+    def _show(
+        self, chunks: Sequence[Chunk], quarantined: Sequence[Chunk] = (), share: bool = False
+    ) -> ToolResult:
         """Show the lines of the excerpts not seen yet, up to the line limits, and record them.
 
         Excerpts fill the limit in order, like the lines of one file. The hits of a search or
-        a definition lookup `share` it instead, so each shows at least its first lines.
+        a definition lookup `share` it instead, so each shows at least its first lines. The
+        Quarantined chunks are named, not shown.
         """
         new: list[Chunk] = []
         seen: list[Chunk] = []
@@ -137,7 +153,24 @@ class Tools:
             parts.append(_limit_note(self._lines_shown))
         if dropped:
             parts.append("Not shown: " + ", ".join(label(c) for c in dropped))
-        return ToolResult("\n\n".join(parts), shown)
+        for chunk in quarantined:
+            parts.append(f"Hidden {label(chunk)}: it looks like a prompt injection.")
+            if label(chunk) not in self.quarantined:
+                self.quarantined.append(label(chunk))
+        return ToolResult("\n\n".join(parts), shown, list(quarantined))
+
+
+def _screen(chunks: Sequence[Chunk]) -> tuple[list[Chunk], list[Chunk]]:
+    """Split whole Chunks into those safe to show, with secrets redacted, and the Quarantined
+    chunks."""
+    clean: list[Chunk] = []
+    quarantined: list[Chunk] = []
+    for chunk in chunks:
+        if looks_like_injection(chunk.text):
+            quarantined.append(chunk)
+        else:
+            clean.append(replace(chunk, text=redact_secrets(chunk.text)))
+    return clean, quarantined
 
 
 def excerpt(chunk: Chunk) -> str:

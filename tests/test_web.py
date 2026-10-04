@@ -35,6 +35,7 @@ EXAMPLE: dict[str, Any] = {
     "findings": [],
     "model": "Claude Sonnet 5",
     "rejected": 0,
+    "quarantined": [],
     "calls": 3,
     "input_tokens": 30_000,
     "output_tokens": 900,

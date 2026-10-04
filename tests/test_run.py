@@ -563,6 +563,7 @@ def test_each_run_writes_a_log_of_its_steps_and_model_calls(
         "tool": "search_code",
         "args": {"query": QUESTION},
         "shown": ["app/auth.py:1-7 hash_password"],
+        "quarantined": [],
     }
     assert call == {
         "model": "fake:scripted",
@@ -581,6 +582,7 @@ def test_each_run_writes_a_log_of_its_steps_and_model_calls(
     assert writer["schema"] == "ReportDraft"
     assert end["findings"] == 1
     assert end["rejected"] == ["app/auth.py:90-95 LoginService"]
+    assert end["quarantined"] == []
     assert end["answer"] == "Hashed [1]."
     assert end["duration_s"] == report.duration_s
 

@@ -53,6 +53,7 @@ flowchart LR
 - **Hybrid search.** Postgres full-text search and pgvector similarity are fused with reciprocal rank fusion, then a small local cross-encoder reranks the candidates.
 - **The Code Navigator.** A Run starts with a search for the question. Then each Agent step is one model call that returns one structured action: `search`, `read` lines of a file, `define` a symbol, or `answer` with Findings. The first step must call a Tool, so the model always looks past the first search. There's no native tool calling, so any model that returns JSON works. A Run takes at most 8 steps and is shown at most 1,500 lines.
 - **Verified citations.** Every excerpt the model is shown is recorded. A Citation survives only if every cited line was shown and the symbol it names is there. The Report Writer then writes the answer from the verified Findings only.
+- **Untrusted code.** A Chunk with a phrase aimed at the model, like "ignore all previous instructions", is quarantined: the Tools name it but never show it, so it can't be followed or cited. Secrets in the code are redacted before the model sees them and again in the Report.
 - **Run log.** Each Run writes a JSON Lines file with every model call (tokens, latency), Agent step, Tool result and rejected Citation to `~/.repolens/runs/`.
 
 Design decisions are recorded in [`docs/adr/`](docs/adr/) and the vocabulary in [`CONTEXT.md`](CONTEXT.md).
@@ -131,7 +132,7 @@ uv run pyright              # strict mode
 - [ ] **M3** Showcase and safety
   - [x] A web app that shows the Code Navigator's steps and opens each Citation to its code
   - [ ] A hosted demo ([#39](https://github.com/AnshChhikara001/repolens/issues/39))
-  - [ ] Guardrails: prompt-injection scan and secret redaction ([#36](https://github.com/AnshChhikara001/repolens/issues/36))
+  - [x] Guardrails: prompt-injection scan and secret redaction ([#36](https://github.com/AnshChhikara001/repolens/issues/36))
   - [ ] Ingest your own repo with your own key ([#43](https://github.com/AnshChhikara001/repolens/issues/43))
 
 ## License

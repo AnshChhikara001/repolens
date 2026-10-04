@@ -45,6 +45,8 @@ class Report:
     findings: list[Finding]
     rejected: list[Citation]
     """The Citations the verifier dropped."""
+    quarantined: list[str]
+    """The Quarantined chunks the Tools hid from the model, e.g. `app/auth.py:14-15 login`."""
     calls: list[ModelCall]
     duration_s: float
 
@@ -55,6 +57,9 @@ class Report:
         for number, finding in enumerate(self.findings, 1):
             lines.append(f"[{number}] {finding.claim}")
             lines.extend(f"    {citation}" for citation in finding.citations)
+        if self.quarantined:
+            lines.extend(["", "Quarantined as a possible prompt injection:"])
+            lines.extend(f"    {chunk}" for chunk in self.quarantined)
         lines.extend(["", self._usage()])
         return "\n".join(lines)
 
