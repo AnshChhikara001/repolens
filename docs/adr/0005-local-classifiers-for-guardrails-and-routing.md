@@ -1,6 +1,6 @@
 # Small local classifiers for guardrails and cheap routing
 
-> **Partly superseded** by [ADR-0011](0011-one-agent-in-plain-python.md): the injection classifier, secret scanning and embedding router were not built. The cross-encoder reranker (kept after the [eval](../../evals/results/baseline.md)) and wrapping code as untrusted data in prompts still hold.
+> **Partly superseded** by [ADR-0011](0011-one-agent-in-plain-python.md) and [ADR-0015](0015-guardrails-as-regular-expressions-in-the-tools.md): the embedding router was not built, and injections and secrets are caught with regular expressions instead of Prompt Guard 2 and gitleaks. The cross-encoder reranker (kept after the [eval](../../evals/results/baseline.md)) and wrapping code as untrusted data in prompts still hold.
 
 Repository content (READMEs, docs, issues, code comments) is untrusted input and a real channel for indirect prompt injection. At ingest, each chunk is scored once by Llama Prompt Guard 2 (22M), cached by content hash. Chunks above threshold are quarantined, and flagged content is shown on the approval screen. Files and the final report are scanned with gitleaks for secrets. Retrieved text is always wrapped as untrusted data in prompts. Obvious single-specialist questions and off-topic questions are routed by cosine similarity on the embeddings we already compute (ADR-0010), which skips the planner LLM call. A 22M cross-encoder reranks retrieved chunks to cut context tokens. All of these run on CPU in well under 1 GB of RAM.
 
